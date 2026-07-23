@@ -1,10 +1,9 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { BACKEND_URL, COOKIE_SECURE, SESSION_COOKIE } from "@/lib/config";
+import { backendLogin, setSessionCookie } from "@/lib/session";
 
-// Server-to-server credential exchange. The browser posts here; we call Flask,
-// and on success set the JWT as an httpOnly cookie on THIS (Next.js) origin.
+// Server-to-server credential exchange. The browser posts here; we call the
+// backend, and on success set the JWT as an httpOnly cookie on THIS origin.
 export async function POST(request: Request) {
   const { email, password } = await request.json().catch(() => ({}));
 
@@ -17,12 +16,7 @@ export async function POST(request: Request) {
 
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}/api/auth/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password }),
-      cache: "no-store",
-    });
+    res = await backendLogin(email, password);
   } catch {
     return NextResponse.json(
       { error: "Can't reach the server. Is the backend running?" },
@@ -31,7 +25,6 @@ export async function POST(request: Request) {
   }
 
   const data = await res.json().catch(() => ({}));
-
   if (!res.ok) {
     return NextResponse.json(
       { error: data.error ?? "Login failed." },
@@ -39,14 +32,6 @@ export async function POST(request: Request) {
     );
   }
 
-  const cookieStore = await cookies();
-  cookieStore.set(SESSION_COOKIE, data.token, {
-    httpOnly: true,
-    secure: COOKIE_SECURE,
-    sameSite: "lax",
-    path: "/",
-    maxAge: data.expires_in ?? 60 * 60 * 24 * 7,
-  });
-
+  await setSessionCookie(data.token, data.expires_in ?? 60 * 60 * 24 * 7);
   return NextResponse.json({ ok: true, user: data.user });
 }

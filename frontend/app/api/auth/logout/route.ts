@@ -1,10 +1,8 @@
-import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
-import { SESSION_COOKIE } from "@/lib/config";
+import { clearSessionCookie } from "@/lib/session";
 
 export async function POST(request: Request) {
-  const cookieStore = await cookies();
-  cookieStore.delete(SESSION_COOKIE);
+  await clearSessionCookie();
   return NextResponse.redirect(new URL("/", request.url));
 }

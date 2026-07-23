@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { SESSION_COOKIE } from "@/lib/config";
+import { SESSION_COOKIE } from "@/lib/env";
 
 // Next.js 16 renamed Middleware to Proxy. This is an optimistic guard: if there's
 // no session cookie, bounce to /login before rendering the dashboard. Full token

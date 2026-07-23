@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
@@ -10,25 +9,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { BACKEND_URL, SESSION_COOKIE } from "@/lib/config";
+import { getCurrentUser } from "@/lib/session";
 
 // Placeholder landing spot after login. The real dashboard comes next — this
 // screen doubles as the first proof that shadcn/ui components render on-brand.
 export default async function DashboardPage() {
-  const cookieStore = await cookies();
-  const token = cookieStore.get(SESSION_COOKIE)?.value;
-
-  if (!token) redirect("/login");
-
-  // Verify the token is still valid server-side.
-  const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  }).catch(() => null);
-
-  if (!res || !res.ok) redirect("/login");
-
-  const { user } = await res.json();
+  const user = await getCurrentUser();
+  if (!user) redirect("/login");
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[radial-gradient(60%_55%_at_50%_0%,rgba(107,142,35,0.14),transparent_70%)] p-6">
