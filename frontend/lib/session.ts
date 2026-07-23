@@ -1,6 +1,7 @@
 // SERVER-ONLY session helpers. These read/write the httpOnly cookie and talk to
 // the FastAPI backend server-to-server — never import this from a client component.
 import { cookies } from "next/headers";
+import { cache } from "react";
 
 import { BACKEND_URL, COOKIE_SECURE, SESSION_COOKIE } from "./env";
 import type { SessionUser } from "./types";
@@ -39,8 +40,9 @@ export async function getSessionToken(): Promise<string | undefined> {
   return store.get(SESSION_COOKIE)?.value;
 }
 
-/** Verify the session against the backend and return the user, or null. */
-export async function getCurrentUser(): Promise<SessionUser | null> {
+/** Verify the session against the backend and return the user, or null.
+ *  Wrapped in React `cache` so the layout and page share one /me call per request. */
+export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const token = await getSessionToken();
   if (!token) return null;
 
@@ -52,4 +54,4 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   if (!res || !res.ok) return null;
   const { user } = await res.json();
   return user as SessionUser;
-}
+});
