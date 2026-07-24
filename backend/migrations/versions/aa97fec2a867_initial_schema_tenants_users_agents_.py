@@ -73,6 +73,7 @@ def upgrade():
     sa.Column('name', sa.String(length=255), nullable=True),
     sa.Column('role', sa.String(length=32), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('onboarded_at', sa.DateTime(timezone=True), nullable=True),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),
