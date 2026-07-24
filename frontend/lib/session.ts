@@ -28,6 +28,15 @@ export async function setSessionCookie(token: string, maxAgeSeconds: number): Pr
   });
 }
 
+/** Tell the backend the user has seen the tour, so it won't show again. */
+export async function markOnboarded(token: string): Promise<Response> {
+  return fetch(`${BACKEND_URL}/api/auth/onboarded`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+}
+
 /** Remove the session cookie (logout). */
 export async function clearSessionCookie(): Promise<void> {
   const store = await cookies();

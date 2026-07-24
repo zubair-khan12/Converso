@@ -27,8 +27,9 @@ export default function LoginPage() {
       setLoading(false);
       return;
     }
-    // Cookie is set; head to the (placeholder) app.
-    router.push("/dashboard");
+    // Cookie is set. First-timers get the guided tour; everyone else goes
+    // straight to work.
+    router.push(result.user.onboarded ? "/dashboard" : "/getting-started");
   }
 
   return (

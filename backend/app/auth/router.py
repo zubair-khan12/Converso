@@ -1,12 +1,15 @@
 """Auth API. Consumed server-to-server by the Next.js frontend, which is what
 sets the httpOnly cookie — so these endpoints just return/verify the token.
 """
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from ..database import get_db
+from .models import User
 from .service import authenticate, create_access_token, decode_access_token
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
@@ -17,13 +20,30 @@ class LoginRequest(BaseModel):
     password: str
 
 
-def _claims_public(claims: dict) -> dict:
+def _user_public(user: User) -> dict:
     return {
-        "id": claims["sub"],
-        "email": claims["email"],
-        "tenant_id": claims["tenant_id"],
-        "role": claims["role"],
+        "id": str(user.id),
+        "email": user.email,
+        "tenant_id": str(user.tenant_id),
+        "role": user.role,
+        "name": user.name,
+        # Drives the post-login redirect: first-timers get the guided tour.
+        "onboarded": user.onboarded_at is not None,
     }
+
+
+def _bearer_user(authorization: str | None, db: Session) -> User | None:
+    """Resolve the bearer token to a live, active user row."""
+    token = ""
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:]
+    claims = decode_access_token(token)
+    if claims is None:
+        return None
+    user = db.query(User).filter(User.id == claims["sub"]).first()
+    if user is None or not user.is_active:
+        return None
+    return user
 
 
 @router.post("/login")
@@ -39,26 +59,39 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
     return {
         "token": token,
         "expires_in": expires_in,
-        "user": {
-            "id": str(user.id),
-            "email": user.email,
-            "tenant_id": str(user.tenant_id),
-            "role": user.role,
-            "name": user.name,
-        },
+        "user": _user_public(user),
     }
 
 
 @router.get("/me")
-def me(authorization: str | None = Header(default=None)):
-    """Verify a bearer token and echo its identity. Used by the frontend to
-    validate the session cookie."""
-    token = ""
-    if authorization and authorization.lower().startswith("bearer "):
-        token = authorization[7:]
-    claims = decode_access_token(token)
-    if claims is None:
+def me(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Verify a bearer token and return the current user. Reads the row rather
+    than trusting the token's claims, so name/onboarded stay fresh and a
+    deactivated user loses access before their token expires."""
+    user = _bearer_user(authorization, db)
+    if user is None:
         return JSONResponse(
             {"error": "Invalid or expired token."}, status_code=401
         )
-    return {"user": _claims_public(claims)}
+    return {"user": _user_public(user)}
+
+
+@router.post("/onboarded")
+def mark_onboarded(
+    authorization: str | None = Header(default=None),
+    db: Session = Depends(get_db),
+):
+    """Record that the user has seen the getting-started tour. Idempotent — the
+    first timestamp wins, so the tour never reappears."""
+    user = _bearer_user(authorization, db)
+    if user is None:
+        return JSONResponse(
+            {"error": "Invalid or expired token."}, status_code=401
+        )
+    if user.onboarded_at is None:
+        user.onboarded_at = datetime.now(timezone.utc)
+        db.commit()
+    return {"user": _user_public(user)}
