@@ -1,5 +1,5 @@
 """Registered users. No public signup — users are provisioned (admin panel)."""
-from sqlalchemy import Boolean, Column, DateTime, String, UniqueConstraint
+from sqlalchemy import Boolean, Column, String, UniqueConstraint
 
 from ..base_model import TenantScopedMixin, TimestampMixin, _uuid_pk
 from sqlalchemy.orm import relationship
@@ -19,9 +19,9 @@ class User(TenantScopedMixin, TimestampMixin, Base):
     # admin access is handled separately by the internal admin panel.
     role = Column(String(32), nullable=False, default="member")
     is_active = Column(Boolean, nullable=False, default=True)
-    # Set the first time the user finishes (or skips) the getting-started tour.
-    # NULL means they've never signed in past the login screen.
-    onboarded_at = Column(DateTime(timezone=True), nullable=True)
+    # Flips to True the first time the user finishes (or skips) the
+    # getting-started tour, so it never shows again.
+    onboarded = Column(Boolean, nullable=False, default=False)
 
     tenant = relationship("Tenant", backref="users")
 

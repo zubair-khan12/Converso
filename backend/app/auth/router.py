@@ -1,8 +1,6 @@
 """Auth API. Consumed server-to-server by the Next.js frontend, which is what
 sets the httpOnly cookie — so these endpoints just return/verify the token.
 """
-from datetime import datetime, timezone
-
 from fastapi import APIRouter, Depends, Header
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -28,7 +26,7 @@ def _user_public(user: User) -> dict:
         "role": user.role,
         "name": user.name,
         # Drives the post-login redirect: first-timers get the guided tour.
-        "onboarded": user.onboarded_at is not None,
+        "onboarded": user.onboarded,
     }
 
 
@@ -84,14 +82,14 @@ def mark_onboarded(
     authorization: str | None = Header(default=None),
     db: Session = Depends(get_db),
 ):
-    """Record that the user has seen the getting-started tour. Idempotent — the
-    first timestamp wins, so the tour never reappears."""
+    """Record that the user has seen the getting-started tour. Idempotent —
+    once True it's never flipped back, so the tour never reappears."""
     user = _bearer_user(authorization, db)
     if user is None:
         return JSONResponse(
             {"error": "Invalid or expired token."}, status_code=401
         )
-    if user.onboarded_at is None:
-        user.onboarded_at = datetime.now(timezone.utc)
+    if not user.onboarded:
+        user.onboarded = True
         db.commit()
     return {"user": _user_public(user)}
