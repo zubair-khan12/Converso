@@ -1,20 +1,21 @@
 import { redirect } from "next/navigation";
 
 import { AgentsPanel } from "@/components/dashboard/agents-panel";
-import { getVapiStatus } from "@/lib/session";
+import { getAgents, getVapiStatus } from "@/lib/session";
 
 export const metadata = {
   title: "Agents · Converso",
 };
 
 // Enforced server-side, not just hidden in the sidebar — a direct hit on this
-// URL without a connected Vapi account bounces to the setup page instead of
-// rendering. There's no agents API yet (see the approved plan); once built,
-// POST /api/agents must independently reject creation without a connected
-// key too, so the gate holds even if this page-level redirect is bypassed.
+// URL without a connected Vapi account bounces to the setup page. The backend
+// independently rejects agent writes without a connected key too
+// (see app/agents/router.py), so the gate holds even if this is bypassed.
 export default async function AgentsPage() {
   const status = await getVapiStatus();
   if (!status.connected) redirect("/dashboard/vapi-setup");
+
+  const agents = await getAgents();
 
   return (
     <div className="space-y-6">
@@ -27,7 +28,7 @@ export default async function AgentsPage() {
         </p>
       </div>
 
-      <AgentsPanel />
+      <AgentsPanel agents={agents} />
     </div>
   );
 }

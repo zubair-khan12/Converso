@@ -10,14 +10,14 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Not signed in." }, { status: 401 });
   }
 
-  const { api_key } = await request.json().catch(() => ({}));
-  if (!api_key) {
-    return NextResponse.json({ error: "API key is required." }, { status: 400 });
+  const { api_key, public_key } = await request.json().catch(() => ({}));
+  if (!api_key && !public_key) {
+    return NextResponse.json({ error: "A Vapi key is required." }, { status: 400 });
   }
 
   let res: Response;
   try {
-    res = await connectVapiBackend(token, api_key);
+    res = await connectVapiBackend(token, { api_key, public_key });
   } catch {
     return NextResponse.json({ error: "Can't reach the server." }, { status: 502 });
   }

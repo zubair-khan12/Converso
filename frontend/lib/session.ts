@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 
 import { BACKEND_URL, COOKIE_SECURE, SESSION_COOKIE } from "./env";
-import type { SessionUser, VapiStatus } from "./types";
+import type { Agent, SessionUser, VapiStatus, Voice } from "./types";
 
 /** Exchange credentials with the backend. Returns the raw fetch Response. */
 export async function backendLogin(email: string, password: string): Promise<Response> {
@@ -69,23 +69,26 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
  *  `cache` so a layout gate and the page body share one call per request. */
 export const getVapiStatus = cache(async (): Promise<VapiStatus> => {
   const token = await getSessionToken();
-  if (!token) return { connected: false, masked_key: null };
+  if (!token) return { connected: false, masked_key: null, has_public_key: false };
 
   const res = await fetch(`${BACKEND_URL}/api/integrations/vapi`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   }).catch(() => null);
 
-  if (!res || !res.ok) return { connected: false, masked_key: null };
+  if (!res || !res.ok) return { connected: false, masked_key: null, has_public_key: false };
   return res.json();
 });
 
-/** Validate + store a tenant's Vapi API key. Returns the raw fetch Response. */
-export async function connectVapiBackend(token: string, apiKey: string): Promise<Response> {
+/** Validate + store a tenant's Vapi keys. Returns the raw fetch Response. */
+export async function connectVapiBackend(
+  token: string,
+  body: { api_key?: string; public_key?: string },
+): Promise<Response> {
   return fetch(`${BACKEND_URL}/api/integrations/vapi`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ api_key: apiKey }),
+    body: JSON.stringify(body),
     cache: "no-store",
   });
 }
@@ -98,3 +101,47 @@ export async function disconnectVapiBackend(token: string): Promise<Response> {
     cache: "no-store",
   });
 }
+
+/** The tenant's voice agents, newest first. Empty on any error. */
+export const getAgents = cache(async (): Promise<Agent[]> => {
+  const token = await getSessionToken();
+  if (!token) return [];
+
+  const res = await fetch(`${BACKEND_URL}/api/agents`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return [];
+  const { agents } = await res.json();
+  return agents as Agent[];
+});
+
+/** A single agent, or null if not found / not owned by this tenant. */
+export async function getAgent(id: string): Promise<Agent | null> {
+  const token = await getSessionToken();
+  if (!token) return null;
+
+  const res = await fetch(`${BACKEND_URL}/api/agents/${id}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return null;
+  return res.json();
+}
+
+/** The catalog of built-in voices an agent can use. */
+export const getVoices = cache(async (): Promise<Voice[]> => {
+  const token = await getSessionToken();
+  if (!token) return [];
+
+  const res = await fetch(`${BACKEND_URL}/api/vapi/voices`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return [];
+  const { voices } = await res.json();
+  return voices as Voice[];
+});
