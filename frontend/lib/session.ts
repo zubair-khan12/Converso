@@ -4,7 +4,7 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 
 import { BACKEND_URL, COOKIE_SECURE, SESSION_COOKIE } from "./env";
-import type { SessionUser } from "./types";
+import type { SessionUser, VapiStatus } from "./types";
 
 /** Exchange credentials with the backend. Returns the raw fetch Response. */
 export async function backendLogin(email: string, password: string): Promise<Response> {
@@ -64,3 +64,37 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const { user } = await res.json();
   return user as SessionUser;
 });
+
+/** Whether the current tenant has a working Vapi connection. Wrapped in
+ *  `cache` so a layout gate and the page body share one call per request. */
+export const getVapiStatus = cache(async (): Promise<VapiStatus> => {
+  const token = await getSessionToken();
+  if (!token) return { connected: false, masked_key: null };
+
+  const res = await fetch(`${BACKEND_URL}/api/integrations/vapi`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return { connected: false, masked_key: null };
+  return res.json();
+});
+
+/** Validate + store a tenant's Vapi API key. Returns the raw fetch Response. */
+export async function connectVapiBackend(token: string, apiKey: string): Promise<Response> {
+  return fetch(`${BACKEND_URL}/api/integrations/vapi`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ api_key: apiKey }),
+    cache: "no-store",
+  });
+}
+
+/** Remove the tenant's stored Vapi API key. Returns the raw fetch Response. */
+export async function disconnectVapiBackend(token: string): Promise<Response> {
+  return fetch(`${BACKEND_URL}/api/integrations/vapi`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  });
+}

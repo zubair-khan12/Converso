@@ -16,3 +16,7 @@ sqladmin==0.29.0
 # --- Auth ---
 PyJWT==2.9.0
 Werkzeug==3.0.4            # password hashing (generate/check_password_hash) only
+cryptography==43.0.3       # encrypting tenant Vapi API keys at rest
+
+# --- Vapi integration ---
+httpx==0.27.2               # calling Vapi's REST API

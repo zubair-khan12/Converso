@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronsLeft, ChevronsRight, Sparkles } from "lucide-react";
+import { ChevronsLeft, ChevronsRight, Lock, Sparkles } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import { NAV } from "./nav";
@@ -12,6 +12,8 @@ type SidebarProps = {
   onToggleCollapse: () => void;
   mobileOpen: boolean;
   onCloseMobile: () => void;
+  /** Tabs marked `requiresVapi` stay locked until this is true. */
+  vapiConnected: boolean;
 };
 
 const rowBase =
@@ -22,6 +24,7 @@ export function Sidebar({
   onToggleCollapse,
   mobileOpen,
   onCloseMobile,
+  vapiConnected,
 }: SidebarProps) {
   const pathname = usePathname();
 
@@ -71,6 +74,8 @@ export function Sidebar({
           {NAV.map((item) => {
             const Icon = item.icon;
             const active = pathname === item.href;
+            const needsVapi = item.requiresVapi && !vapiConnected;
+            const locked = item.soon || needsVapi;
 
             const inner = (
               <>
@@ -81,14 +86,20 @@ export function Sidebar({
                     Soon
                   </span>
                 )}
+                {!collapsed && needsVapi && <Lock className="h-3.5 w-3.5 shrink-0" />}
               </>
             );
 
-            if (item.soon) {
+            if (locked) {
+              const title = item.soon
+                ? collapsed
+                  ? item.label
+                  : undefined
+                : "Connect Vapi to unlock this tab";
               return (
                 <div
                   key={item.href}
-                  title={collapsed ? item.label : undefined}
+                  title={title}
                   className={cn(
                     rowBase,
                     "cursor-not-allowed text-[var(--ink-muted)]/60",
