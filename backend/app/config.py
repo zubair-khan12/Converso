@@ -9,6 +9,10 @@ class Settings(BaseSettings):
 
     SECRET_KEY: str = "dev-secret-change-me"
 
+    # Fernet key used to encrypt tenant integration credentials (e.g. Vapi API
+    # keys) at rest. Must be a valid urlsafe-base64 32-byte Fernet key.
+    ENCRYPTION_KEY: str = "YT3fdy_Jci3h9Qv6IItbqPQdiYpf6RFhf95aQq8HL10="
+
     DATABASE_URL: str = (
         "postgresql+psycopg2://omerbhatti@localhost:5432/voice_ai_platform"
     )

@@ -11,6 +11,7 @@ from .admin import init_admin
 from .auth.router import router as auth_router
 from .config import settings
 from .database import engine
+from .integrations.router import router as integrations_router
 
 app = FastAPI(title="Voice AI SaaS API")
 
@@ -24,6 +25,7 @@ app.add_middleware(
 
 # Public JSON API.
 app.include_router(auth_router)
+app.include_router(integrations_router)
 
 # Internal admin panel at /admin.
 init_admin(app, engine)

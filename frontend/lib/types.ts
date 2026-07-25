@@ -9,3 +9,8 @@ export type SessionUser = {
   /** False until the user has been through the getting-started tour once. */
   onboarded: boolean;
 };
+
+export type VapiStatus = {
+  connected: boolean;
+  masked_key: string | null;
+};
