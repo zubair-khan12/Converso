@@ -39,6 +39,8 @@ def upgrade():
     sa.Column('voice', sa.String(length=120), nullable=True),
     sa.Column('config', postgresql.JSONB(astext_type=sa.Text()), nullable=False),
     sa.Column('vapi_assistant_id', sa.String(length=255), nullable=True),
+    sa.Column('provisioning_status', sa.String(length=32), nullable=False),
+    sa.Column('provisioning_error', sa.Text(), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
@@ -47,6 +49,7 @@ def upgrade():
     sa.PrimaryKeyConstraint('id')
     )
     with op.batch_alter_table('agents', schema=None) as batch_op:
+        batch_op.create_index(batch_op.f('ix_agents_provisioning_status'), ['provisioning_status'], unique=False)
         batch_op.create_index(batch_op.f('ix_agents_tenant_id'), ['tenant_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_agents_vapi_assistant_id'), ['vapi_assistant_id'], unique=False)
 
@@ -73,6 +76,7 @@ def upgrade():
     sa.Column('name', sa.String(length=255), nullable=True),
     sa.Column('role', sa.String(length=32), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('onboarded', sa.Boolean(), nullable=False),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
     sa.Column('updated_at', sa.DateTime(timezone=True), nullable=False),

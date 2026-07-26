@@ -9,9 +9,11 @@ import { Topbar } from "./topbar";
 
 export function DashboardShell({
   user,
+  vapiConnected,
   children,
 }: {
   user: SessionUser;
+  vapiConnected: boolean;
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -24,6 +26,7 @@ export function DashboardShell({
         onToggleCollapse={() => setCollapsed((v) => !v)}
         mobileOpen={mobileOpen}
         onCloseMobile={() => setMobileOpen(false)}
+        vapiConnected={vapiConnected}
       />
 
       <div

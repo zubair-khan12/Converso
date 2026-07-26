@@ -140,6 +140,16 @@ body {
   border-radius: 4px;
 }
 
+/* Drives the onboarding carousel's autoplay rail. */
+@keyframes converso-progress {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

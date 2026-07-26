@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { Bell, ChevronDown, FileText, LogOut, Menu } from "lucide-react";
+import { Bell, ChevronDown, LogOut, Menu } from "lucide-react";
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -49,14 +50,6 @@ export function Topbar({
 
       <div className="flex-1" />
 
-      <a
-        href="#"
-        className="hidden items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--surface-sunk)] hover:text-[var(--ink)] sm:flex"
-      >
-        <FileText className="h-4 w-4" />
-        Docs
-      </a>
-
       <button
         type="button"
         className="relative grid h-9 w-9 place-items-center rounded-lg text-[var(--ink)] hover:bg-[var(--surface-sunk)]"
@@ -84,9 +77,13 @@ export function Topbar({
           <ChevronDown className="hidden h-4 w-4 text-[var(--ink-muted)] sm:block" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel className="truncate font-normal text-[var(--ink-muted)]">
-            {user.email}
-          </DropdownMenuLabel>
+          {/* Base UI requires GroupLabel to sit inside a Group — without this
+              wrapper it throws "MenuGroupContext is missing" on render. */}
+          <DropdownMenuGroup>
+            <DropdownMenuLabel className="truncate font-normal text-[var(--ink-muted)]">
+              {user.email}
+            </DropdownMenuLabel>
+          </DropdownMenuGroup>
           <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive" onClick={logout}>
             <LogOut className="h-4 w-4" />

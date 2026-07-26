@@ -19,6 +19,9 @@ class User(TenantScopedMixin, TimestampMixin, Base):
     # admin access is handled separately by the internal admin panel.
     role = Column(String(32), nullable=False, default="member")
     is_active = Column(Boolean, nullable=False, default=True)
+    # Flips to True the first time the user finishes (or skips) the
+    # getting-started tour, so it never shows again.
+    onboarded = Column(Boolean, nullable=False, default=False)
 
     tenant = relationship("Tenant", backref="users")
 

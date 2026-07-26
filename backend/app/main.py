@@ -8,9 +8,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from . import models  # noqa: F401  (registers all ORM tables)
 from .admin import init_admin
+from .agents.router import router as agents_router
 from .auth.router import router as auth_router
 from .config import settings
 from .database import engine
+from .integrations.router import router as integrations_router
+from .vapi.router import router as vapi_router
 
 app = FastAPI(title="Voice AI SaaS API")
 
@@ -24,6 +27,9 @@ app.add_middleware(
 
 # Public JSON API.
 app.include_router(auth_router)
+app.include_router(integrations_router)
+app.include_router(vapi_router)
+app.include_router(agents_router)
 
 # Internal admin panel at /admin.
 init_admin(app, engine)
