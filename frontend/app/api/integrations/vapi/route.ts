@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 
 import { connectVapiBackend, disconnectVapiBackend, getSessionToken } from "@/lib/session";
 
-// Proxies the tenant's Vapi API key to the backend. The key itself only ever
-// passes through this server-side handler — never stored or read client-side.
+
 export async function POST(request: Request) {
   const token = await getSessionToken();
   if (!token) {
