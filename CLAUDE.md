@@ -22,7 +22,13 @@ is the cross-cutting map. Two `.venv`s currently exist (repo root and
 
 - **Backend**: FastAPI 0.139 + Uvicorn, plain SQLAlchemy 2.0 (`DeclarativeBase`),
   standalone Alembic, PostgreSQL 15 + pgvector, `sqladmin` for the internal
-  admin panel, PyJWT for tokens, Werkzeug only for `check_password_hash`.
+  admin panel, PyJWT for tokens, Werkzeug only for `check_password_hash`,
+  `cryptography`/Fernet for encrypting tenant Vapi keys, `httpx` for the Vapi
+  REST API. **RAG**: LangGraph for the agent; langchain-openai for embeddings
+  (`text-embedding-3-small`, 1536, cheapest OpenAI embeddings) and generation
+  (`gpt-4.1-nano`, cheapest chat model). pypdf for PDF text extraction. NOTE:
+  `EMBEDDING_DIM` must match the embedding model and the `document_chunks`
+  vector column (currently 1536).
 - **Frontend**: Next.js 16.2 (App Router) + React 19, Tailwind v4, shadcn/ui
   built on **Base UI** primitives (not Radix — different API, e.g. `render`
   prop instead of `asChild`).
@@ -81,14 +87,46 @@ supplies `tenant_id` directly.
   Tailwind/shadcn — everything under `/dashboard` and `/login` uses
   Tailwind + shadcn.
 
+## Voice agents + RAG (Vapi custom-LLM brain)
+
+An agent lives in two places: a local `Agent` row and a Vapi assistant, kept in
+sync by `app/agents/router.py`. Two model modes:
+
+- **Untrained** (no knowledge base): Vapi runs its own built-in OpenAI model.
+- **Trained** (has embedded knowledge): the assistant's `model.provider` is
+  `custom-llm` pointed at `{PUBLIC_BACKEND_URL}/api/vapi/custom-llm/{agent_id}`,
+  so Vapi routes **every turn** to our LangGraph RAG agent
+  (`app/vapi/rag_agent.py`: retrieve → generate), which embeds the query,
+  cosine-searches `document_chunks` (pgvector, agent-scoped), and streams an
+  OpenAI-compatible SSE reply. The agent id in the path is the capability token
+  (never trusted from the request body). Knowledge base = agentic tool #1;
+  Cal.com will be tool #2.
+
+Knowledge flow: add sources (pasted text / PDF·txt, `POST .../documents/*`,
+stored as `pending` with `extracted_text`) → **Train agent** (`POST
+.../train`) chunks + embeds into pgvector and flips the assistant to custom-LLM.
+Each retrieval is traced to the **backend console** and persisted
+(`Conversation` upserted by Vapi `call.id` + `ToolExecution`
+`knowledge_base_search`) — the learning-visibility feature.
+
+**Local-dev requirements for live calls**: `OPENAI_API_KEY` (platform,
+embeddings + generation) and `PUBLIC_BACKEND_URL` set to an **ngrok** tunnel —
+Vapi can't reach `localhost`. Without the key, training fails gracefully
+(per-doc `failed` status) and non-RAG flows still work. See memory
+`rag-langgraph-architecture`.
+
 ## Current scope / state
 
 Done: landing page, login (httpOnly cookie), first-login onboarding tour,
-dashboard shell (sidebar/topbar, collapsible, mobile drawer), dashboard home
-with honest empty states (no fabricated metrics), Voice/Chat agents tab
-(Chat locked — "Launching soon").
+dashboard shell, dashboard home (honest empty states), Configure Vapi (key
+encrypted at rest), Voice agents CRUD synced to Vapi + web test calls,
+Knowledge Base (text/PDF upload, LangGraph RAG via custom-LLM, console+DB
+retrieval trace). Chat agents tab locked ("Launching soon").
 
-Deferred / not yet built: real `GET /api/dashboard/summary` and
-`GET /api/agents` endpoints (dashboard currently shows placeholders),
-Agents/Knowledge Base/Phone Numbers/Call Logs/Integrations/Settings screens,
-Vapi integration, the two-venv consolidation, `infra/` deploy config.
+Deferred / not yet built: real `GET /api/dashboard/summary` (dashboard shows
+placeholders), Cal.com scheduling tool (LangGraph tool #2), Phone
+Numbers/Call Logs/Integrations/Settings screens, document object storage
+(only extracted text is kept, not raw files), end-call *function* under
+custom-LLM (endCallPhrases still work), true token-streaming from the graph
+(currently computes then chunks), the two-venv consolidation, `infra/` deploy
+config.

@@ -10,13 +10,20 @@ from sqlalchemy.dialects.postgresql import UUID
 from ..base_model import TenantScopedMixin, TimestampMixin, _uuid_pk
 from sqlalchemy.orm import relationship
 
+from ..config import settings
 from ..database import Base
 
-# Fixed vector dimension for the embedding column. Must match EMBEDDING_DIM in
-# config and the model used to generate embeddings (1536 = OpenAI text-embedding-3-small).
-EMBEDDING_DIM = 1536
+# Vector dimension for the embedding column, driven by config so it matches the
+# embedding model (text-embedding-3-small = 1536). Changing EMBEDDING_DIM
+# requires re-ALTERing this column and re-training.
+EMBEDDING_DIM = settings.EMBEDDING_DIM
 
-DOCUMENT_STATUSES = ("processing", "ready", "failed")
+# Document lifecycle:
+#   pending    → uploaded/pasted, text extracted, not embedded yet
+#   processing → chunk+embed in progress (during "Train agent")
+#   ready      → chunks embedded and searchable
+#   failed     → extraction or embedding failed; `error` explains
+DOCUMENT_STATUSES = ("pending", "processing", "ready", "failed")
 
 
 class Document(TenantScopedMixin, TimestampMixin, Base):
@@ -34,6 +41,9 @@ class Document(TenantScopedMixin, TimestampMixin, Base):
     storage_key = Column(String(1024), nullable=True)
     mime_type = Column(String(255), nullable=True)
     size_bytes = Column(Integer, nullable=True)
+    # Extracted plain text, kept between upload and "Train agent" so training
+    # can (re)chunk + embed without object storage to re-read the raw file.
+    extracted_text = Column(Text, nullable=True)
 
     status = Column(String(32), nullable=False, default="processing", index=True)
     error = Column(Text, nullable=True)

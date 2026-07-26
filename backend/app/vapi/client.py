@@ -52,16 +52,35 @@ def build_assistant_payload(
     voice_id: str,
     temperature: float,
     first_message: str = "",
+    custom_llm_url: str | None = None,
 ) -> dict:
-    """Shape an Agent's config into Vapi's assistant request body."""
-    payload = {
-        "name": name,
-        "model": {
+    """Shape an Agent's config into Vapi's assistant request body.
+
+    When `custom_llm_url` is given (a "trained" agent with a knowledge base),
+    the model is a `custom-llm` pointed at that URL, so Vapi routes every turn
+    to our LangGraph RAG brain instead of running its own LLM. Otherwise it's a
+    plain built-in OpenAI model.
+    """
+    if custom_llm_url:
+        model = {
+            "provider": "custom-llm",
+            # Vapi appends `/chat/completions` to this base URL.
+            "url": custom_llm_url,
+            "model": DEFAULT_MODEL,
+            "temperature": temperature,
+            "messages": [{"role": "system", "content": base_prompt}],
+        }
+    else:
+        model = {
             "provider": DEFAULT_MODEL_PROVIDER,
             "model": DEFAULT_MODEL,
             "temperature": temperature,
             "messages": [{"role": "system", "content": base_prompt}],
-        },
+        }
+
+    payload = {
+        "name": name,
+        "model": model,
         "voice": {"provider": VOICE_PROVIDER, "voiceId": voice_id},
         # Let the assistant end the call itself when the caller asks to
         # ("end the call", "I'm done"), and when it says a sign-off phrase.

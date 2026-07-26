@@ -9,9 +9,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from ..database import get_db
 from ..deps import get_current_claims
 from ..integrations.service import get_vapi_api_key, get_vapi_public_key
+from ..knowledge.service import has_ready_chunks, train_documents
 from ..vapi.client import (
     DEFAULT_MODEL,
     DEFAULT_MODEL_PROVIDER,
@@ -54,6 +56,7 @@ def _agent_public(agent: Agent) -> dict:
         "temperature": cfg.get("temperature"),
         "first_message": cfg.get("first_message", ""),
         "model": cfg.get("model"),
+        "knowledge_trained": bool(cfg.get("rag_enabled")),
         "provisioning_status": agent.provisioning_status,
         "provisioning_error": agent.provisioning_error,
         "vapi_assistant_id": agent.vapi_assistant_id,
@@ -65,12 +68,19 @@ def _agent_public(agent: Agent) -> dict:
 
 def _payload_for(agent: Agent) -> dict:
     cfg = agent.config or {}
+    # A trained agent (knowledge base embedded) routes every turn through our
+    # LangGraph RAG brain via a custom-LLM URL; an untrained one uses Vapi's
+    # built-in model directly.
+    custom_llm_url = None
+    if cfg.get("rag_enabled"):
+        custom_llm_url = f"{settings.public_base_url}/api/vapi/custom-llm/{agent.id}"
     return build_assistant_payload(
         name=agent.name,
         base_prompt=agent.base_prompt,
         voice_id=agent.voice or DEFAULT_VOICE_ID,
         temperature=cfg.get("temperature", 0.7),
         first_message=cfg.get("first_message", ""),
+        custom_llm_url=custom_llm_url,
     )
 
 
@@ -248,6 +258,40 @@ def update_agent(
     db.commit()
     db.refresh(agent)
     return _agent_public(agent)
+
+
+@router.post("/{agent_id}/train")
+def train_agent(
+    agent_id: str,
+    claims: dict = Depends(get_current_claims),
+    db: Session = Depends(get_db),
+):
+    """Chunk + embed the agent's knowledge sources into pgvector, then re-push
+    the Vapi assistant so it routes calls through the RAG brain (custom-LLM).
+
+    Idempotent: already-embedded sources are skipped, so this is safe to click
+    again after adding one more document.
+    """
+    tenant_id = claims["tenant_id"]
+    agent = _get_agent_or_404(db, tenant_id, agent_id)
+    api_key = _require_vapi_key(db, tenant_id)
+
+    summary = train_documents(db, tenant_id, str(agent.id))
+
+    # RAG is on iff we actually have searchable chunks. Deleting every source
+    # and re-training flips the agent back to the plain built-in model.
+    cfg = dict(agent.config or {})
+    cfg["rag_enabled"] = has_ready_chunks(db, str(agent.id))
+    agent.config = cfg
+    db.commit()
+    db.refresh(agent)
+
+    # Rebuild on Vapi with the now-correct model (custom-LLM if trained).
+    _push_to_vapi(agent, api_key)
+    db.commit()
+    db.refresh(agent)
+
+    return {"agent": _agent_public(agent), "training": summary}
 
 
 @router.delete("/{agent_id}", status_code=200)

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Mic, MicOff, PhoneOff, X } from "lucide-react";
 
 import { getCallCredentials } from "@/lib/api";
+import { CallSounds } from "@/lib/call-sounds";
 import type { Agent } from "@/lib/types";
 
 // Daily (Vapi's WebRTC transport) logs a benign "Meeting ended due to ejection"
@@ -95,12 +96,13 @@ function extractMessage(e: unknown): string {
 
 export function CallOverlay({ agent, onClose }: { agent: Agent; onClose: () => void }) {
   const [state, setState] = useState<CallState>("connecting");
-  const [status, setStatus] = useState("Connecting…");
+  const [status, setStatus] = useState("Calling…");
   const [error, setError] = useState<string | null>(null);
   const [volume, setVolume] = useState(0);
   const [speaking, setSpeaking] = useState(false);
   const [muted, setMuted] = useState(false);
   const vapiRef = useRef<VapiClient | null>(null);
+  const soundsRef = useRef<CallSounds | null>(null);
   const closedRef = useRef(false);
   // Keep a live ref to onClose so the effect can stay keyed only on the agent
   // and not re-run (restarting the call) when the parent re-renders.
@@ -112,6 +114,10 @@ export function CallOverlay({ agent, onClose }: { agent: Agent; onClose: () => v
   const close = useCallback(() => {
     if (closedRef.current) return;
     closedRef.current = true;
+    // Audible "call over" cue, then dismiss. The end tone plays on the same
+    // audio context, which dispose() closes only after the tone has finished.
+    soundsRef.current?.stopRingback();
+    soundsRef.current?.playEndTone();
     try {
       vapiRef.current?.stop();
     } catch {
@@ -124,10 +130,17 @@ export function CallOverlay({ agent, onClose }: { agent: Agent; onClose: () => v
     let cancelled = false;
     document.body.style.overflow = "hidden";
 
+    // Start the ringback immediately so the call feels like it's dialing while
+    // credentials load and the transport connects.
+    const sounds = new CallSounds();
+    soundsRef.current = sounds;
+    sounds.startRingback();
+
     async function begin() {
       const creds = await getCallCredentials(agent.id);
       if (cancelled) return;
       if (!creds.ok) {
+        sounds.stopRingback();
         setState("error");
         setError(creds.error);
         return;
@@ -140,6 +153,7 @@ export function CallOverlay({ agent, onClose }: { agent: Agent; onClose: () => v
         const Vapi = mod.default;
         vapi = new Vapi(creds.credentials.public_key) as unknown as VapiClient;
       } catch {
+        sounds.stopRingback();
         setState("error");
         setError("Could not load the voice client.");
         return;
@@ -148,6 +162,8 @@ export function CallOverlay({ agent, onClose }: { agent: Agent; onClose: () => v
 
       vapi.on("call-start", () => {
         if (cancelled) return;
+        // Connected — stop dialing.
+        sounds.stopRingback();
         setState("active");
         setStatus("Listening…");
       });
@@ -177,6 +193,7 @@ export function CallOverlay({ agent, onClose }: { agent: Agent; onClose: () => v
         // eslint-disable-next-line no-console
         console.error("Vapi call error:", e);
         if (cancelled) return;
+        sounds.stopRingback();
         setState("error");
         setError(describeVapiError(e));
       });
@@ -184,6 +201,7 @@ export function CallOverlay({ agent, onClose }: { agent: Agent; onClose: () => v
       try {
         vapi.start(creds.credentials.assistant_id);
       } catch {
+        sounds.stopRingback();
         setState("error");
         setError("Could not start the call.");
       }
@@ -199,6 +217,8 @@ export function CallOverlay({ agent, onClose }: { agent: Agent; onClose: () => v
       } catch {
         /* already stopped */
       }
+      // Delayed context close — lets an in-flight end tone finish.
+      sounds.dispose();
     };
   }, [agent.id, agent.name, close]);
 

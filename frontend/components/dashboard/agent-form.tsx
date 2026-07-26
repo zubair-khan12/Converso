@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, BookOpen } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +14,14 @@ import type { Agent, Voice } from "@/lib/types";
 
 const fieldClass =
   "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
+
+// Seeded into a new agent's base prompt so it's already oriented toward
+// answering from a knowledge base (the tenant can edit or replace it).
+const DEFAULT_BASE_PROMPT =
+  "You are a friendly, concise voice assistant for this business. Answer the " +
+  "caller's questions using the business's knowledge base. If something isn't " +
+  "covered there, say so honestly instead of guessing, and offer to help " +
+  "another way. Keep replies short and natural for a phone conversation.";
 
 export function AgentForm({
   voices,
@@ -31,14 +39,20 @@ export function AgentForm({
   );
   const [temperature, setTemperature] = useState(agent?.temperature ?? 0.7);
   const [firstMessage, setFirstMessage] = useState(agent?.first_message ?? "");
-  const [basePrompt, setBasePrompt] = useState(agent?.base_prompt ?? "");
+  const [basePrompt, setBasePrompt] = useState(
+    agent?.base_prompt ?? DEFAULT_BASE_PROMPT,
+  );
   const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
+  // Which button is in flight, so each shows its own busy label.
+  const [saving, setSaving] = useState<"agents" | "knowledge" | null>(null);
 
-  async function onSubmit(e: React.FormEvent) {
-    e.preventDefault();
+  // Save the agent, then go to `dest`: back to the list, or straight into this
+  // agent's Knowledge Base tab (the "Add knowledge base" path — the agent must
+  // exist before it can own documents).
+  async function save(dest: "agents" | "knowledge") {
+    if (saving) return;
     setError(null);
-    setSaving(true);
+    setSaving(dest);
 
     const input = {
       name,
@@ -53,14 +67,22 @@ export function AgentForm({
 
     if (!result.ok) {
       setError(result.error);
-      setSaving(false);
+      setSaving(null);
       return;
     }
 
+    const id = isEdit ? agent!.id : result.agent.id;
     // A Vapi failure still saves the agent locally as "failed"; the list shows
-    // that state with a retry, so either way we head back to it.
-    router.push("/dashboard/agents");
+    // that state with a retry, so either way we move on.
+    router.push(
+      dest === "knowledge" ? `/dashboard/knowledge?agent=${id}` : "/dashboard/agents",
+    );
     router.refresh();
+  }
+
+  function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    void save("agents");
   }
 
   return (
@@ -163,16 +185,27 @@ export function AgentForm({
             <Button
               type="submit"
               size="lg"
-              disabled={saving}
+              disabled={saving !== null}
               className="gap-1.5 bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] px-5 text-[var(--ink)] hover:opacity-95"
             >
-              {saving
+              {saving === "agents"
                 ? isEdit
                   ? "Saving…"
                   : "Creating…"
                 : isEdit
                   ? "Save changes"
                   : "Create agent"}
+            </Button>
+            <Button
+              type="button"
+              size="lg"
+              variant="outline"
+              disabled={saving !== null}
+              onClick={() => void save("knowledge")}
+              className="gap-1.5"
+            >
+              <BookOpen className="h-4 w-4" />
+              {saving === "knowledge" ? "Saving…" : "Add knowledge base"}
             </Button>
             <Button
               size="lg"
@@ -185,6 +218,10 @@ export function AgentForm({
               Cancel
             </Button>
           </div>
+          <p className="-mt-1 text-xs text-[var(--ink-muted)]">
+            The agent is created first; “Add knowledge base” then opens its
+            Knowledge Base so you can add text or documents and train it.
+          </p>
         </form>
       </CardContent>
     </Card>

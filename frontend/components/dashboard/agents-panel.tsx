@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import {
+  BookOpen,
   Bot,
   Lock,
   MessagesSquare,
@@ -12,6 +13,7 @@ import {
   Plus,
   Radio,
   RefreshCw,
+  Sparkles,
   Trash2,
 } from "lucide-react";
 
@@ -114,6 +116,12 @@ function AgentRow({ agent, onTest }: { agent: Agent; onTest: (a: Agent) => void 
           <div className="flex flex-wrap items-center gap-2">
             <p className="font-semibold text-[var(--ink)]">{agent.name}</p>
             <StatusPill status={agent.provisioning_status} />
+            {agent.knowledge_trained && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(107,142,35,0.14)] px-2 py-0.5 text-xs font-semibold text-[#4b6115]">
+                <Sparkles className="h-3 w-3" />
+                Knowledge
+              </span>
+            )}
           </div>
           <p className="mt-0.5 text-sm text-[var(--ink-muted)]">
             Voice: {agent.voice_id ?? "—"} · Temp: {agent.temperature ?? "—"}
@@ -151,6 +159,16 @@ function AgentRow({ agent, onTest }: { agent: Agent; onTest: (a: Agent) => void 
             Retry
           </Button>
         )}
+        <Button
+          size="sm"
+          variant="outline"
+          render={<Link href={`/dashboard/knowledge?agent=${agent.id}`} />}
+          nativeButton={false}
+          className="gap-1.5"
+        >
+          <BookOpen className="h-3.5 w-3.5" />
+          Knowledge
+        </Button>
         <Button
           size="sm"
           variant="outline"
