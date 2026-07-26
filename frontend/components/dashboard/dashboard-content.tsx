@@ -1,6 +1,7 @@
-import { Bot, Clock, PhoneCall, Users, type LucideIcon } from "lucide-react";
+import Link from "next/link";
+import { ArrowRight, Bot, Clock, PhoneCall, Users, type LucideIcon } from "lucide-react";
 
-import { AgentsPanel } from "@/components/dashboard/agents-panel";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import type { SessionUser } from "@/lib/types";
 
@@ -64,7 +65,31 @@ export function DashboardContent({ user }: { user: SessionUser }) {
         <StatCard icon={Users} label="Unique callers" value="0" note="No calls yet" />
       </div>
 
-      <AgentsPanel />
+      {/* Agents live on their own page now; this just points there. */}
+      <Card>
+        <CardContent className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+          <div className="flex items-start gap-4">
+            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[rgba(244,201,93,0.22)] text-[var(--amber-ink)]">
+              <Bot className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="font-semibold text-[var(--ink)]">Your voice agents</p>
+              <p className="mt-0.5 text-sm text-[var(--ink-muted)]">
+                Create, edit, and manage the agents that answer your calls.
+              </p>
+            </div>
+          </div>
+          <Button
+            size="lg"
+            render={<Link href="/dashboard/agents" />}
+            nativeButton={false}
+            className="gap-1.5 bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] px-4 text-[var(--ink)] hover:opacity-95"
+          >
+            Manage agents
+            <ArrowRight className="h-4 w-4" />
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
