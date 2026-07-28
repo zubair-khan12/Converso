@@ -1,7 +1,14 @@
 // CLIENT-SIDE API calls. These hit our own Next.js Route Handlers (same origin),
 // which is what sets the httpOnly cookie — the browser never calls the backend
 // directly, so the JWT is never exposed to JavaScript.
-import type { Agent, CallCredentials, SessionUser, VapiStatus } from "./types";
+import type {
+  Agent,
+  CallCredentials,
+  KnowledgeDocument,
+  SessionUser,
+  TrainingSummary,
+  VapiStatus,
+} from "./types";
 
 export type LoginResult =
   | { ok: true; user: SessionUser }
@@ -132,6 +139,96 @@ export async function deleteAgent(id: string): Promise<AgentActionResult> {
     return { ok: false, error: data.error ?? "Could not delete the agent." };
   }
   return { ok: true };
+}
+
+// --- Knowledge base ---
+
+export type DocumentResult =
+  | { ok: true; document: KnowledgeDocument }
+  | { ok: false; error: string };
+
+export type TrainResult =
+  | { ok: true; agent: Agent; training: TrainingSummary }
+  | { ok: false; error: string };
+
+/** Add a pasted-text knowledge source to an agent. */
+export async function addKnowledgeText(
+  agentId: string,
+  input: { title: string; text: string },
+): Promise<DocumentResult> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/agents/${agentId}/documents`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "Could not add the text." };
+  }
+  return { ok: true, document: data as KnowledgeDocument };
+}
+
+/** Upload a PDF / .txt knowledge source to an agent. */
+export async function uploadKnowledgeFile(
+  agentId: string,
+  file: File,
+): Promise<DocumentResult> {
+  const form = new FormData();
+  form.append("file", file);
+  let res: Response;
+  try {
+    res = await fetch(`/api/agents/${agentId}/documents/file`, {
+      method: "POST",
+      body: form,
+    });
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "Could not upload the file." };
+  }
+  return { ok: true, document: data as KnowledgeDocument };
+}
+
+/** Remove a knowledge source. */
+export async function deleteDocument(
+  agentId: string,
+  docId: string,
+): Promise<AgentActionResult> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/agents/${agentId}/documents/${docId}`, {
+      method: "DELETE",
+    });
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { ok: false, error: data.error ?? "Could not delete the document." };
+  }
+  return { ok: true };
+}
+
+/** Chunk + embed the agent's sources and re-provision it on Vapi (RAG brain). */
+export async function trainAgent(agentId: string): Promise<TrainResult> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/agents/${agentId}/train`, { method: "POST" });
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "Could not train the agent." };
+  }
+  return { ok: true, agent: data.agent as Agent, training: data.training as TrainingSummary };
 }
 
 async function agentWrite(

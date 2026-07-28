@@ -95,6 +95,7 @@ def upgrade():
     sa.Column('storage_key', sa.String(length=1024), nullable=True),
     sa.Column('mime_type', sa.String(length=255), nullable=True),
     sa.Column('size_bytes', sa.Integer(), nullable=True),
+    sa.Column('extracted_text', sa.Text(), nullable=True),
     sa.Column('status', sa.String(length=32), nullable=False),
     sa.Column('error', sa.Text(), nullable=True),
     sa.Column('tenant_id', sa.UUID(), nullable=False),

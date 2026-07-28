@@ -4,7 +4,13 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 
 import { BACKEND_URL, COOKIE_SECURE, SESSION_COOKIE } from "./env";
-import type { Agent, SessionUser, VapiStatus, Voice } from "./types";
+import type {
+  Agent,
+  KnowledgeDocument,
+  SessionUser,
+  VapiStatus,
+  Voice,
+} from "./types";
 
 /** Exchange credentials with the backend. Returns the raw fetch Response. */
 export async function backendLogin(email: string, password: string): Promise<Response> {
@@ -129,6 +135,21 @@ export async function getAgent(id: string): Promise<Agent | null> {
 
   if (!res || !res.ok) return null;
   return res.json();
+}
+
+/** An agent's knowledge sources (documents), oldest first. Empty on any error. */
+export async function getDocuments(agentId: string): Promise<KnowledgeDocument[]> {
+  const token = await getSessionToken();
+  if (!token) return [];
+
+  const res = await fetch(`${BACKEND_URL}/api/agents/${agentId}/documents`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return [];
+  const { documents } = await res.json();
+  return documents as KnowledgeDocument[];
 }
 
 /** The catalog of built-in voices an agent can use. */

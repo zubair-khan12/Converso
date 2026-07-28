@@ -31,6 +31,29 @@ export type Voice = {
 
 export type ProvisioningStatus = "pending" | "ready" | "failed";
 
+/** A knowledge source's lifecycle: uploaded → embedded on "Train agent". */
+export type DocumentStatus = "pending" | "processing" | "ready" | "failed";
+
+export type KnowledgeDocument = {
+  id: string;
+  agent_id: string;
+  filename: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  status: DocumentStatus;
+  error: string | null;
+  chunk_count: number;
+  created_at: string | null;
+};
+
+/** Result of a "Train agent" run — how many sources were embedded. */
+export type TrainingSummary = {
+  documents_total: number;
+  documents_trained: number;
+  documents_failed: number;
+  chunks: number;
+};
+
 export type Agent = {
   id: string;
   name: string;
@@ -39,6 +62,8 @@ export type Agent = {
   temperature: number | null;
   first_message: string;
   model: string | null;
+  /** True once the agent has an embedded knowledge base (routes via RAG brain). */
+  knowledge_trained: boolean;
   provisioning_status: ProvisioningStatus;
   provisioning_error: string | null;
   vapi_assistant_id: string | null;
