@@ -115,18 +115,54 @@ Vapi can't reach `localhost`. Without the key, training fails gracefully
 (per-doc `failed` status) and non-RAG flows still work. See memory
 `rag-langgraph-architecture`.
 
+## Phone numbers (inbound calls)
+
+A `PhoneNumber` row mirrors `Agent`'s two-places-kept-in-sync pattern: every
+number — regardless of underlying carrier — is created/updated/deleted
+through **Vapi's own** `/phone-number` API (`app/vapi/client.py`'s
+`create_phone_number`/`update_phone_number`/`delete_phone_number`), never a
+carrier's API directly. `provider` picks the carrier:
+
+- **`vapi`** (default) — Vapi provisions the number itself, no external
+  account; `numberDesiredAreaCode` is an optional hint.
+- **`twilio`** — bring-your-own: buy the number in Twilio, connect the
+  account's SID + Auth Token once (`POST /api/integrations/twilio`, same
+  encrypted-`Integration` pattern as the Vapi key), then import the number
+  (`POST /api/telephony/numbers`). Vapi accepts these credentials **inline**
+  on the create call (confirmed via Vapi's OpenAPI spec) — no separate Vapi
+  credential object needed.
+- **`telnyx`** — bring-your-own, but its `credentialId` is **not** anything
+  from Telnyx's own dashboard: it's the UUID of a Credential the tenant must
+  manually add at **dashboard.vapi.ai/keys** (pasting their Telnyx API key
+  there — Vapi has no public API to create credentials, confirmed empty in
+  the spec). We just store that UUID (validated as UUID-shaped before saving)
+  and pass it through as `credentialId`.
+
+Neither BYO provider has a search/purchase UI — attach an existing number only.
+
+Attaching a number sets its Vapi `assistantId`; any inbound call to that
+number is routed to that agent exactly like a web test call, just from a real
+caller. **Inbound only** — outbound dialing isn't built. `e164` is nullable
+(Vapi assigns the actual number for `provider="vapi"`, so it's briefly
+unknown at `pending`). `PROVISIONING_STATUSES`/`provisioning_error` mirror
+`Agent`'s pattern, with the same `POST /{id}/retry`.
+
+A genuine Pakistani (+92) number is very unlikely to be self-serve through
+any of these platforms (PTA regulation typically requires a licensed local
+carrier) — not attempted; the provider layer is pluggable if one is found.
+
 ## Current scope / state
 
 Done: landing page, login (httpOnly cookie), first-login onboarding tour,
 dashboard shell, dashboard home (honest empty states), Configure Vapi (key
 encrypted at rest), Voice agents CRUD synced to Vapi + web test calls,
 Knowledge Base (text/PDF upload, LangGraph RAG via custom-LLM, console+DB
-retrieval trace). Chat agents tab locked ("Launching soon").
+retrieval trace), Phone Numbers (Vapi-native + Twilio/Telnyx bring-your-own,
+inbound only). Chat agents tab locked ("Launching soon").
 
 Deferred / not yet built: real `GET /api/dashboard/summary` (dashboard shows
-placeholders), Cal.com scheduling tool (LangGraph tool #2), Phone
-Numbers/Call Logs/Integrations/Settings screens, document object storage
-(only extracted text is kept, not raw files), end-call *function* under
-custom-LLM (endCallPhrases still work), true token-streaming from the graph
-(currently computes then chunks), the two-venv consolidation, `infra/` deploy
-config.
+placeholders), Cal.com scheduling tool (LangGraph tool #2), outbound calling,
+Call Logs/Integrations/Settings screens, document object storage (only
+extracted text is kept, not raw files), end-call *function* under custom-LLM
+(endCallPhrases still work), true token-streaming from the graph (currently
+computes then chunks), the two-venv consolidation, `infra/` deploy config.

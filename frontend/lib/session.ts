@@ -7,6 +7,8 @@ import { BACKEND_URL, COOKIE_SECURE, SESSION_COOKIE } from "./env";
 import type {
   Agent,
   KnowledgeDocument,
+  PhoneNumber,
+  ProviderStatus,
   SessionUser,
   VapiStatus,
   Voice,
@@ -151,6 +153,42 @@ export async function getDocuments(agentId: string): Promise<KnowledgeDocument[]
   const { documents } = await res.json();
   return documents as KnowledgeDocument[];
 }
+
+/** The tenant's phone numbers, newest first. Empty on any error. */
+export const getPhoneNumbers = cache(async (): Promise<PhoneNumber[]> => {
+  const token = await getSessionToken();
+  if (!token) return [];
+
+  const res = await fetch(`${BACKEND_URL}/api/telephony/numbers`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return [];
+  const { phone_numbers } = await res.json();
+  return phone_numbers as PhoneNumber[];
+});
+
+const DISCONNECTED_PROVIDER: ProviderStatus = { connected: false, masked_key: null };
+
+async function getProviderStatus(provider: "twilio" | "telnyx"): Promise<ProviderStatus> {
+  const token = await getSessionToken();
+  if (!token) return DISCONNECTED_PROVIDER;
+
+  const res = await fetch(`${BACKEND_URL}/api/integrations/${provider}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return DISCONNECTED_PROVIDER;
+  return res.json();
+}
+
+/** Whether the tenant has connected Twilio (for bring-your-own numbers). */
+export const getTwilioStatus = cache(() => getProviderStatus("twilio"));
+
+/** Whether the tenant has connected Telnyx (for bring-your-own numbers). */
+export const getTelnyxStatus = cache(() => getProviderStatus("telnyx"));
 
 /** The catalog of built-in voices an agent can use. */
 export const getVoices = cache(async (): Promise<Voice[]> => {

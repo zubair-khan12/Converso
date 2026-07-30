@@ -54,6 +54,30 @@ export type TrainingSummary = {
   chunks: number;
 };
 
+export type TelephonyProvider = "vapi" | "twilio" | "telnyx";
+
+/** A phone number's lifecycle: created locally, provisioned on Vapi, or failed. */
+export type PhoneNumberStatus = "pending" | "ready" | "failed";
+
+export type PhoneNumber = {
+  id: string;
+  provider: TelephonyProvider;
+  e164: string | null;
+  agent_id: string | null;
+  agent_name: string | null;
+  provisioning_status: PhoneNumberStatus;
+  provisioning_error: string | null;
+  is_active: boolean;
+  created_at: string | null;
+};
+
+/** Connection status for a bring-your-own telephony provider (Twilio/Telnyx) —
+ *  simpler than VapiStatus since there's no separate public key. */
+export type ProviderStatus = {
+  connected: boolean;
+  masked_key: string | null;
+};
+
 export type Agent = {
   id: string;
   name: string;

@@ -97,7 +97,7 @@ class DocumentChunkAdmin(ModelView, model=DocumentChunk):
 class PhoneNumberAdmin(ModelView, model=PhoneNumber):
     category = "Telephony"
     name = "Phone Number"
-    column_list = [PhoneNumber.e164, PhoneNumber.tenant, PhoneNumber.agent, PhoneNumber.provider, PhoneNumber.is_active]
+    column_list = [PhoneNumber.e164, PhoneNumber.tenant, PhoneNumber.agent, PhoneNumber.provider, PhoneNumber.provisioning_status, PhoneNumber.is_active]
     column_searchable_list = [PhoneNumber.e164]
     form_excluded_columns = _SYSTEM_COLUMNS
 
