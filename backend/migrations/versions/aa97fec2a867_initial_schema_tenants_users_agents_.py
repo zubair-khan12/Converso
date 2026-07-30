@@ -114,8 +114,10 @@ def upgrade():
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('agent_id', sa.UUID(), nullable=True),
     sa.Column('provider', sa.String(length=64), nullable=False),
-    sa.Column('provider_number_id', sa.String(length=255), nullable=True),
-    sa.Column('e164', sa.String(length=20), nullable=False),
+    sa.Column('vapi_phone_number_id', sa.String(length=255), nullable=True),
+    sa.Column('e164', sa.String(length=20), nullable=True),
+    sa.Column('provisioning_status', sa.String(length=32), nullable=False),
+    sa.Column('provisioning_error', sa.Text(), nullable=True),
     sa.Column('is_active', sa.Boolean(), nullable=False),
     sa.Column('tenant_id', sa.UUID(), nullable=False),
     sa.Column('created_at', sa.DateTime(timezone=True), nullable=False),
@@ -127,7 +129,9 @@ def upgrade():
     with op.batch_alter_table('phone_numbers', schema=None) as batch_op:
         batch_op.create_index(batch_op.f('ix_phone_numbers_agent_id'), ['agent_id'], unique=False)
         batch_op.create_index(batch_op.f('ix_phone_numbers_e164'), ['e164'], unique=True)
+        batch_op.create_index(batch_op.f('ix_phone_numbers_provisioning_status'), ['provisioning_status'], unique=False)
         batch_op.create_index(batch_op.f('ix_phone_numbers_tenant_id'), ['tenant_id'], unique=False)
+        batch_op.create_index(batch_op.f('ix_phone_numbers_vapi_phone_number_id'), ['vapi_phone_number_id'], unique=False)
 
     op.create_table('conversations',
     sa.Column('id', sa.UUID(), nullable=False),
@@ -239,7 +243,9 @@ def downgrade():
 
     op.drop_table('conversations')
     with op.batch_alter_table('phone_numbers', schema=None) as batch_op:
+        batch_op.drop_index(batch_op.f('ix_phone_numbers_vapi_phone_number_id'))
         batch_op.drop_index(batch_op.f('ix_phone_numbers_tenant_id'))
+        batch_op.drop_index(batch_op.f('ix_phone_numbers_provisioning_status'))
         batch_op.drop_index(batch_op.f('ix_phone_numbers_e164'))
         batch_op.drop_index(batch_op.f('ix_phone_numbers_agent_id'))
 

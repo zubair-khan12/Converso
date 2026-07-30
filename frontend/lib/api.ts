@@ -5,6 +5,8 @@ import type {
   Agent,
   CallCredentials,
   KnowledgeDocument,
+  PhoneNumber,
+  ProviderStatus,
   SessionUser,
   TrainingSummary,
   VapiStatus,
@@ -229,6 +231,125 @@ export async function trainAgent(agentId: string): Promise<TrainResult> {
     return { ok: false, error: data.error ?? "Could not train the agent." };
   }
   return { ok: true, agent: data.agent as Agent, training: data.training as TrainingSummary };
+}
+
+// --- Phone numbers ---
+
+export type PhoneNumberResult =
+  | { ok: true; phoneNumber: PhoneNumber }
+  | { ok: false; error: string };
+
+export type CreatePhoneNumberInput = {
+  provider: "vapi" | "twilio" | "telnyx";
+  agent_id?: string;
+  area_code?: string;
+  number?: string;
+};
+
+export async function createPhoneNumber(
+  input: CreatePhoneNumberInput,
+): Promise<PhoneNumberResult> {
+  return phoneNumberWrite("/api/telephony/numbers", "POST", input);
+}
+
+export async function reassignPhoneNumber(
+  id: string,
+  agentId: string,
+): Promise<PhoneNumberResult> {
+  return phoneNumberWrite(`/api/telephony/numbers/${id}`, "PATCH", { agent_id: agentId });
+}
+
+export async function detachPhoneNumber(id: string): Promise<PhoneNumberResult> {
+  return phoneNumberWrite(`/api/telephony/numbers/${id}`, "PATCH", { detach: true });
+}
+
+export async function retryPhoneNumber(id: string): Promise<PhoneNumberResult> {
+  return phoneNumberWrite(`/api/telephony/numbers/${id}/retry`, "POST");
+}
+
+export async function deletePhoneNumber(id: string): Promise<AgentActionResult> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/telephony/numbers/${id}`, { method: "DELETE" });
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    return { ok: false, error: data.error ?? "Could not delete the phone number." };
+  }
+  return { ok: true };
+}
+
+async function phoneNumberWrite(
+  url: string,
+  method: string,
+  body?: unknown,
+): Promise<PhoneNumberResult> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "Something went wrong. Try again." };
+  }
+  return { ok: true, phoneNumber: data as PhoneNumber };
+}
+
+// --- Twilio / Telnyx connection (bring-your-own numbers) ---
+
+export type ProviderConnectResult =
+  | { ok: true; status: ProviderStatus }
+  | { ok: false; error: string };
+
+export async function connectTwilio(input: {
+  account_sid: string;
+  auth_token: string;
+}): Promise<ProviderConnectResult> {
+  return providerWrite("/api/integrations/twilio", "POST", input);
+}
+
+export async function disconnectTwilio(): Promise<ProviderConnectResult> {
+  return providerWrite("/api/integrations/twilio", "DELETE");
+}
+
+export async function connectTelnyx(input: {
+  credential_id: string;
+}): Promise<ProviderConnectResult> {
+  return providerWrite("/api/integrations/telnyx", "POST", input);
+}
+
+export async function disconnectTelnyx(): Promise<ProviderConnectResult> {
+  return providerWrite("/api/integrations/telnyx", "DELETE");
+}
+
+async function providerWrite(
+  url: string,
+  method: string,
+  body?: unknown,
+): Promise<ProviderConnectResult> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "Something went wrong. Try again." };
+  }
+  return { ok: true, status: data as ProviderStatus };
 }
 
 async function agentWrite(

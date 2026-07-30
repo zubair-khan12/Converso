@@ -158,3 +158,131 @@ def delete_assistant(api_key: str, assistant_id: str) -> None:
     if resp.status_code == 404:
         return
     _raise_for_status(resp, "delete the assistant")
+
+
+# --- Phone numbers ---
+#
+# Every number — Vapi-native, or bring-your-own Twilio/Telnyx — is created and
+# managed through Vapi's own /phone-number API. Vapi is the single API surface
+# regardless of underlying carrier; the carrier only changes which fields are
+# required in the create payload.
+
+PHONE_PROVIDERS = ("vapi", "twilio", "telnyx")
+
+
+def build_phone_number_payload(
+    *,
+    provider: str,
+    assistant_id: str | None = None,
+    area_code: str | None = None,
+    number: str | None = None,
+    twilio_account_sid: str | None = None,
+    twilio_auth_token: str | None = None,
+    telnyx_credential_id: str | None = None,
+    name: str | None = None,
+) -> dict:
+    """Shape a phone-number request for Vapi, dispatching on `provider`.
+
+    - "vapi": Vapi provisions the number itself; `area_code` is an optional
+      hint, the actual E.164 number comes back in the response.
+    - "twilio": imports a number you already bought in Twilio; requires
+      `number`, `twilio_account_sid`, `twilio_auth_token`.
+    - "telnyx": imports a number you already bought in Telnyx; requires
+      `number` and a `telnyx_credential_id` — a credential added at
+      dashboard.vapi.ai/keys (using your Telnyx API key), NOT anything from
+      Telnyx's own dashboard. Vapi has no public API to create it.
+    """
+    if provider not in PHONE_PROVIDERS:
+        raise VapiError(f"Unknown phone number provider '{provider}'.")
+
+    payload: dict = {"provider": provider}
+    if assistant_id:
+        payload["assistantId"] = assistant_id
+    if name:
+        payload["name"] = name
+
+    if provider == "vapi":
+        if area_code:
+            payload["numberDesiredAreaCode"] = area_code
+    elif provider == "twilio":
+        if not (number and twilio_account_sid and twilio_auth_token):
+            raise VapiError(
+                "Twilio numbers need the number, Account SID, and Auth Token."
+            )
+        payload["number"] = number
+        payload["twilioAccountSid"] = twilio_account_sid
+        payload["twilioAuthToken"] = twilio_auth_token
+    elif provider == "telnyx":
+        if not (number and telnyx_credential_id):
+            raise VapiError("Telnyx numbers need the number and a credential id.")
+        payload["number"] = number
+        payload["credentialId"] = telnyx_credential_id
+
+    return payload
+
+
+def create_phone_number(api_key: str, payload: dict) -> dict:
+    """Create/import a phone number on Vapi. Returns the created resource
+    (incl. `id` and, once assigned, `number`)."""
+    try:
+        resp = httpx.post(
+            f"{VAPI_API_BASE}/phone-number",
+            headers=_headers(api_key),
+            json=payload,
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        raise VapiError(f"Could not reach Vapi: {exc}") from exc
+    _raise_for_status(resp, "create the phone number")
+    return resp.json()
+
+
+def update_phone_number(api_key: str, phone_number_id: str, payload: dict) -> dict:
+    """Patch an existing Vapi phone number (e.g. to reassign its assistant)."""
+    try:
+        resp = httpx.patch(
+            f"{VAPI_API_BASE}/phone-number/{phone_number_id}",
+            headers=_headers(api_key),
+            json=payload,
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        raise VapiError(f"Could not reach Vapi: {exc}") from exc
+    _raise_for_status(resp, "update the phone number")
+    return resp.json()
+
+
+def list_phone_numbers(api_key: str) -> list[dict]:
+    """All phone numbers registered on this Vapi account (any provider).
+
+    Used to detect a number that already exists on Vapi — e.g. added directly
+    through Vapi's own dashboard, or by a prior create that succeeded on Vapi
+    but wasn't recorded locally — since Vapi rejects creating a duplicate
+    `number` outright. No server-side filter by number, so this fetches the
+    account's numbers (default page size 100) and the caller matches locally.
+    """
+    try:
+        resp = httpx.get(
+            f"{VAPI_API_BASE}/phone-number",
+            headers=_headers(api_key),
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        raise VapiError(f"Could not reach Vapi: {exc}") from exc
+    _raise_for_status(resp, "list phone numbers")
+    return resp.json()
+
+
+def delete_phone_number(api_key: str, phone_number_id: str) -> None:
+    """Release a phone number on Vapi. A 404 is treated as success."""
+    try:
+        resp = httpx.delete(
+            f"{VAPI_API_BASE}/phone-number/{phone_number_id}",
+            headers=_headers(api_key),
+            timeout=30.0,
+        )
+    except httpx.HTTPError as exc:
+        raise VapiError(f"Could not reach Vapi: {exc}") from exc
+    if resp.status_code == 404:
+        return
+    _raise_for_status(resp, "delete the phone number")
