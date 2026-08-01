@@ -9,12 +9,10 @@ rather than silently running on a value everyone can read.
 `validate_settings()` (called from `app/main.py`) enforces that in production
 and warns in development.
 """
+import json
 import sys
 
-from typing import Annotated
-
-from pydantic import field_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # The stock SECRET_KEY. Named so startup can refuse to run with it in
 # production — it signs the admin session cookie, and it's public in this repo.
@@ -74,31 +72,29 @@ class Settings(BaseSettings):
     # server talks to us server-to-server (no CORS needed), but this lets the
     # browser hit the API directly later if we want. Override in production
     # with the real frontend origin — never leave localhost open there.
-    # `NoDecode` stops pydantic-settings JSON-decoding this in the env source,
-    # handing the raw string to the validator below instead. Without it, typing
-    # the obvious thing into a hosting dashboard (`https://app.example.com`)
-    # raises while the Settings object is being *constructed* — at import,
-    # before any error handling of ours exists — so the app dies with no usable
-    # message. On a serverless host that surfaces only as
-    # FUNCTION_INVOCATION_FAILED.
-    CORS_ORIGINS: Annotated[list[str], NoDecode] = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-    ]
+    # Kept as a plain `str`, parsed by `cors_origins` below — NOT `list[str]`.
+    #
+    # pydantic-settings JSON-decodes any complex-typed env var inside its env
+    # source, which runs while `Settings()` is being constructed at import.
+    # So `CORS_ORIGINS=https://app.example.com` — the obvious thing to type
+    # into a hosting dashboard — raises before a single line of our own code
+    # runs, and on a serverless host that surfaces as nothing but
+    # FUNCTION_INVOCATION_FAILED. A string can't fail to parse, so the failure
+    # mode is designed out rather than handled.
+    CORS_ORIGINS: str = "http://localhost:3000,http://localhost:3001"
 
-    @field_validator("CORS_ORIGINS", mode="before")
-    @classmethod
-    def _parse_origins(cls, value):
-        """Accept JSON, a comma-separated list, or a single bare origin."""
-        if not isinstance(value, str):
-            return value
-        text = value.strip()
+    @property
+    def cors_origins(self) -> list[str]:
+        """Allowed browser origins. Accepts a comma-separated list, a single
+        bare origin, or a JSON array (what older deploys may already have set)."""
+        text = (self.CORS_ORIGINS or "").strip()
         if not text:
             return []
         if text.startswith("["):
-            import json
-
-            return json.loads(text)
+            try:
+                return [str(o) for o in json.loads(text)]
+            except ValueError:
+                return []
         return [part.strip() for part in text.split(",") if part.strip()]
 
     @property
@@ -148,7 +144,7 @@ def _secret_problems(s: Settings) -> list[str]:
             "will fail. Set it to the deployed https origin."
         )
 
-    if any("localhost" in o for o in s.CORS_ORIGINS):
+    if any("localhost" in o for o in s.cors_origins):
         problems.append(
             "CORS_ORIGINS still allows localhost. Set it to the real frontend origin."
         )
