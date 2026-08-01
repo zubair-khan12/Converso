@@ -10,6 +10,16 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from .config import settings
 
+if not settings.DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not set. Add it to backend/.env for local development, "
+        "or to the environment of the deployed service. It has no default — a "
+        "committed connection string would leak its password."
+    )
+
+# `pool_pre_ping` matters more on a hosted Postgres (Neon and friends idle out
+# and close connections) than it did locally: without it the first query after
+# an idle period fails instead of transparently reconnecting.
 engine = create_engine(settings.DATABASE_URL, pool_pre_ping=True, future=True)
 
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)

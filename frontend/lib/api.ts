@@ -3,6 +3,7 @@
 // directly, so the JWT is never exposed to JavaScript.
 import type {
   Agent,
+  CalcomStatus,
   CallCredentials,
   KnowledgeDocument,
   PhoneNumber,
@@ -350,6 +351,47 @@ async function providerWrite(
     return { ok: false, error: data.error ?? "Something went wrong. Try again." };
   }
   return { ok: true, status: data as ProviderStatus };
+}
+
+// --- Cal.com (agent-driven scheduling) ---
+
+export type CalcomResult =
+  | { ok: true; status: CalcomStatus }
+  | { ok: false; error: string };
+
+/** Validate + store the tenant's Cal.com API key and pull their event types. */
+export async function connectCalcom(apiKey: string): Promise<CalcomResult> {
+  return calcomWrite("POST", { api_key: apiKey });
+}
+
+/** Link an event type to one agent — this pair is what turns scheduling on. */
+export async function selectCalcomEvent(
+  eventTypeId: number,
+  agentId: string,
+): Promise<CalcomResult> {
+  return calcomWrite("PATCH", { event_type_id: eventTypeId, agent_id: agentId });
+}
+
+export async function disconnectCalcom(): Promise<CalcomResult> {
+  return calcomWrite("DELETE");
+}
+
+async function calcomWrite(method: string, body?: unknown): Promise<CalcomResult> {
+  let res: Response;
+  try {
+    res = await fetch("/api/integrations/calcom", {
+      method,
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "Something went wrong. Try again." };
+  }
+  return { ok: true, status: data as CalcomStatus };
 }
 
 async function agentWrite(

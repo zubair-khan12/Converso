@@ -6,6 +6,7 @@ import { cache } from "react";
 import { BACKEND_URL, COOKIE_SECURE, SESSION_COOKIE } from "./env";
 import type {
   Agent,
+  CalcomStatus,
   KnowledgeDocument,
   PhoneNumber,
   ProviderStatus,
@@ -189,6 +190,34 @@ export const getTwilioStatus = cache(() => getProviderStatus("twilio"));
 
 /** Whether the tenant has connected Telnyx (for bring-your-own numbers). */
 export const getTelnyxStatus = cache(() => getProviderStatus("telnyx"));
+
+const DISCONNECTED_CALCOM: CalcomStatus = {
+  connected: false,
+  masked_key: null,
+  organizer_email: null,
+  time_zone: null,
+  event_types: [],
+  event_type_id: null,
+  event_title: null,
+  length_minutes: null,
+  agent_id: null,
+  agent_name: null,
+  scheduling_prompt: null,
+};
+
+/** The tenant's Cal.com connection, including a live event-type list. */
+export const getCalcomStatus = cache(async (): Promise<CalcomStatus> => {
+  const token = await getSessionToken();
+  if (!token) return DISCONNECTED_CALCOM;
+
+  const res = await fetch(`${BACKEND_URL}/api/integrations/calcom`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return DISCONNECTED_CALCOM;
+  return res.json();
+});
 
 /** The catalog of built-in voices an agent can use. */
 export const getVoices = cache(async (): Promise<Voice[]> => {
