@@ -12,6 +12,12 @@ pgvector==0.3.6
 
 # --- Internal admin panel ---
 sqladmin==0.29.0
+# Signs the admin session cookie via Starlette's SessionMiddleware. Both
+# sqladmin and starlette declare it only under their `full` extra, so a plain
+# install does NOT pull it in — it must be pinned explicitly or admin login
+# raises ModuleNotFoundError at import. It works locally only because some
+# other dev dependency happens to install it.
+itsdangerous==2.2.0
 
 # --- Auth ---
 PyJWT==2.9.0
