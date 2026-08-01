@@ -126,13 +126,18 @@ Set these on whichever host you use:
 
 ```
 ENVIRONMENT=production
-SECRET_KEY=<python -c "import secrets; print(secrets.token_urlsafe(48))">
+SECRET_KEY=<the value already in your .env>
 ENCRYPTION_KEY=<the Fernet key — same one, or tenants must reconnect integrations>
 DATABASE_URL=postgresql+psycopg2://…neon.tech/neondb?sslmode=require
 OPENAI_API_KEY=sk-…
 PUBLIC_BACKEND_URL=https://<this service's own origin>   # Vapi calls back here
 CORS_ORIGINS=["https://<the frontend origin>"]
 ```
+
+Reuse the `SECRET_KEY` you already have rather than generating a fresh one —
+it signs both tenant JWTs and admin session cookies, so changing it signs
+everyone out and they must log in again (no data is lost). To rotate it
+deliberately: `python -c "import secrets; print(secrets.token_urlsafe(48))"`.
 
 Then point the frontend at it: set `BACKEND_URL` to this service's origin in
 the Vercel project (Settings → Environment Variables) and redeploy. It is
