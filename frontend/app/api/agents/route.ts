@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { BACKEND_URL } from "@/lib/env";
+import { backendUrl } from "@/lib/env";
 import { getSessionToken } from "@/lib/session";
 
 // Create an agent. Forwards to the backend, which provisions it on Vapi and
@@ -15,7 +15,7 @@ export async function POST(request: Request) {
 
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}/api/agents`, {
+    res = await fetch(`${backendUrl()}/api/agents`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),

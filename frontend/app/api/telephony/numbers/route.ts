@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { BACKEND_URL } from "@/lib/env";
+import { backendUrl } from "@/lib/env";
 import { getSessionToken } from "@/lib/session";
 
 // List the tenant's phone numbers.
@@ -12,7 +12,7 @@ export async function GET() {
 
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}/api/telephony/numbers`, {
+    res = await fetch(`${backendUrl()}/api/telephony/numbers`, {
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
     });
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
 
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}/api/telephony/numbers`, {
+    res = await fetch(`${backendUrl()}/api/telephony/numbers`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),

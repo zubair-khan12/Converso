@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { BACKEND_URL } from "@/lib/env";
+import { backendUrl } from "@/lib/env";
 import { getSessionToken } from "@/lib/session";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -16,7 +16,7 @@ export async function POST(_request: Request, { params }: Ctx) {
 
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}/api/agents/${id}/train`, {
+    res = await fetch(`${backendUrl()}/api/agents/${id}/train`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",

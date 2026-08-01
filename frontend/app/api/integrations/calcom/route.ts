@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { BACKEND_URL } from "@/lib/env";
+import { backendUrl } from "@/lib/env";
 import { getSessionToken } from "@/lib/session";
 
 /** Same-origin proxy to the backend's Cal.com endpoints, so the JWT stays in
@@ -13,7 +13,7 @@ async function proxy(method: string, body?: unknown, fallbackError = "Something 
 
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}/api/integrations/calcom`, {
+    res = await fetch(`${backendUrl()}/api/integrations/calcom`, {
       method,
       headers: {
         Authorization: `Bearer ${token}`,

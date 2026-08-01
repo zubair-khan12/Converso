@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { BACKEND_URL } from "@/lib/env";
+import { backendUrl } from "@/lib/env";
 import { getSessionToken } from "@/lib/session";
 
 type Ctx = { params: Promise<{ id: string; docId: string }> };
@@ -15,7 +15,7 @@ export async function DELETE(_request: Request, { params }: Ctx) {
 
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}/api/agents/${id}/documents/${docId}`, {
+    res = await fetch(`${backendUrl()}/api/agents/${id}/documents/${docId}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",

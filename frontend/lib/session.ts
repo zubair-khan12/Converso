@@ -3,7 +3,7 @@
 import { cookies } from "next/headers";
 import { cache } from "react";
 
-import { BACKEND_URL, COOKIE_SECURE, SESSION_COOKIE } from "./env";
+import { backendUrl, COOKIE_SECURE, SESSION_COOKIE } from "./env";
 import type {
   Agent,
   CalcomStatus,
@@ -17,7 +17,7 @@ import type {
 
 /** Exchange credentials with the backend. Returns the raw fetch Response. */
 export async function backendLogin(email: string, password: string): Promise<Response> {
-  return fetch(`${BACKEND_URL}/api/auth/login`, {
+  return fetch(`${backendUrl()}/api/auth/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, password }),
@@ -39,7 +39,7 @@ export async function setSessionCookie(token: string, maxAgeSeconds: number): Pr
 
 /** Tell the backend the user has seen the tour, so it won't show again. */
 export async function markOnboarded(token: string): Promise<Response> {
-  return fetch(`${BACKEND_URL}/api/auth/onboarded`, {
+  return fetch(`${backendUrl()}/api/auth/onboarded`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
@@ -64,7 +64,7 @@ export const getCurrentUser = cache(async (): Promise<SessionUser | null> => {
   const token = await getSessionToken();
   if (!token) return null;
 
-  const res = await fetch(`${BACKEND_URL}/api/auth/me`, {
+  const res = await fetch(`${backendUrl()}/api/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   }).catch(() => null);
@@ -80,7 +80,7 @@ export const getVapiStatus = cache(async (): Promise<VapiStatus> => {
   const token = await getSessionToken();
   if (!token) return { connected: false, masked_key: null, has_public_key: false };
 
-  const res = await fetch(`${BACKEND_URL}/api/integrations/vapi`, {
+  const res = await fetch(`${backendUrl()}/api/integrations/vapi`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   }).catch(() => null);
@@ -94,7 +94,7 @@ export async function connectVapiBackend(
   token: string,
   body: { api_key?: string; public_key?: string },
 ): Promise<Response> {
-  return fetch(`${BACKEND_URL}/api/integrations/vapi`, {
+  return fetch(`${backendUrl()}/api/integrations/vapi`, {
     method: "POST",
     headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -104,7 +104,7 @@ export async function connectVapiBackend(
 
 /** Remove the tenant's stored Vapi API key. Returns the raw fetch Response. */
 export async function disconnectVapiBackend(token: string): Promise<Response> {
-  return fetch(`${BACKEND_URL}/api/integrations/vapi`, {
+  return fetch(`${backendUrl()}/api/integrations/vapi`, {
     method: "DELETE",
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
@@ -116,7 +116,7 @@ export const getAgents = cache(async (): Promise<Agent[]> => {
   const token = await getSessionToken();
   if (!token) return [];
 
-  const res = await fetch(`${BACKEND_URL}/api/agents`, {
+  const res = await fetch(`${backendUrl()}/api/agents`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   }).catch(() => null);
@@ -131,7 +131,7 @@ export async function getAgent(id: string): Promise<Agent | null> {
   const token = await getSessionToken();
   if (!token) return null;
 
-  const res = await fetch(`${BACKEND_URL}/api/agents/${id}`, {
+  const res = await fetch(`${backendUrl()}/api/agents/${id}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   }).catch(() => null);
@@ -145,7 +145,7 @@ export async function getDocuments(agentId: string): Promise<KnowledgeDocument[]
   const token = await getSessionToken();
   if (!token) return [];
 
-  const res = await fetch(`${BACKEND_URL}/api/agents/${agentId}/documents`, {
+  const res = await fetch(`${backendUrl()}/api/agents/${agentId}/documents`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   }).catch(() => null);
@@ -160,7 +160,7 @@ export const getPhoneNumbers = cache(async (): Promise<PhoneNumber[]> => {
   const token = await getSessionToken();
   if (!token) return [];
 
-  const res = await fetch(`${BACKEND_URL}/api/telephony/numbers`, {
+  const res = await fetch(`${backendUrl()}/api/telephony/numbers`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   }).catch(() => null);
@@ -176,7 +176,7 @@ async function getProviderStatus(provider: "twilio" | "telnyx"): Promise<Provide
   const token = await getSessionToken();
   if (!token) return DISCONNECTED_PROVIDER;
 
-  const res = await fetch(`${BACKEND_URL}/api/integrations/${provider}`, {
+  const res = await fetch(`${backendUrl()}/api/integrations/${provider}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   }).catch(() => null);
@@ -210,7 +210,7 @@ export const getCalcomStatus = cache(async (): Promise<CalcomStatus> => {
   const token = await getSessionToken();
   if (!token) return DISCONNECTED_CALCOM;
 
-  const res = await fetch(`${BACKEND_URL}/api/integrations/calcom`, {
+  const res = await fetch(`${backendUrl()}/api/integrations/calcom`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   }).catch(() => null);
@@ -224,7 +224,7 @@ export const getVoices = cache(async (): Promise<Voice[]> => {
   const token = await getSessionToken();
   if (!token) return [];
 
-  const res = await fetch(`${BACKEND_URL}/api/vapi/voices`, {
+  const res = await fetch(`${backendUrl()}/api/vapi/voices`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   }).catch(() => null);

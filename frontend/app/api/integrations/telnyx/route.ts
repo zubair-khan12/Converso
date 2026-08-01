@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { BACKEND_URL } from "@/lib/env";
+import { backendUrl } from "@/lib/env";
 import { getSessionToken } from "@/lib/session";
 
 export async function POST(request: Request) {
@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}/api/integrations/telnyx`, {
+    res = await fetch(`${backendUrl()}/api/integrations/telnyx`, {
       method: "POST",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -37,7 +37,7 @@ export async function DELETE() {
   }
 
   try {
-    const res = await fetch(`${BACKEND_URL}/api/integrations/telnyx`, {
+    const res = await fetch(`${backendUrl()}/api/integrations/telnyx`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",

@@ -5,17 +5,25 @@
 // browser bundle. Route Handlers read it server-side and proxy, so the browser
 // never learns the backend's address.
 //
-// The localhost fallback is a dev convenience only: falling back in production
-// would send every request to a backend that isn't there and look like a
-// mysterious outage, so a missing value fails the build/boot instead.
-if (process.env.NODE_ENV === "production" && !process.env.BACKEND_URL) {
-  throw new Error(
-    "BACKEND_URL is not set. Set it to the deployed FastAPI origin " +
-      "(e.g. https://api.yourdomain.com) in the hosting environment.",
-  );
+// Read per call, never at module scope. `next build` imports every route module
+// to collect page data, so a module-level throw fails the *build* on a machine
+// that legitimately has no backend configured yet — and a module-level constant
+// would bake in whatever value existed at build time, which is wrong for a
+// runtime setting. Both problems disappear by resolving it when a request
+// actually needs it.
+export function backendUrl(): string {
+  const url = process.env.BACKEND_URL;
+  if (url) return url;
+  // Falling back in production would silently route every request to a backend
+  // that isn't there and read as a mysterious outage, so fail loudly instead.
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "BACKEND_URL is not set. Set it to the deployed FastAPI origin " +
+        "(e.g. https://api.yourdomain.com) in the hosting environment.",
+    );
+  }
+  return "http://localhost:5000";
 }
-
-export const BACKEND_URL = process.env.BACKEND_URL ?? "http://localhost:5000";
 
 export const SESSION_COOKIE = "converso_session";
 

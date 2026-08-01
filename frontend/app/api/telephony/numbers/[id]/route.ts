@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { BACKEND_URL } from "@/lib/env";
+import { backendUrl } from "@/lib/env";
 import { getSessionToken } from "@/lib/session";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -17,7 +17,7 @@ export async function PATCH(request: Request, { params }: Ctx) {
 
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}/api/telephony/numbers/${id}`, {
+    res = await fetch(`${backendUrl()}/api/telephony/numbers/${id}`, {
       method: "PATCH",
       headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -45,7 +45,7 @@ export async function DELETE(_request: Request, { params }: Ctx) {
 
   let res: Response;
   try {
-    res = await fetch(`${BACKEND_URL}/api/telephony/numbers/${id}`, {
+    res = await fetch(`${backendUrl()}/api/telephony/numbers/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` },
       cache: "no-store",
