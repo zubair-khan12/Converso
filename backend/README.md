@@ -120,6 +120,57 @@ Tenant users can also be provisioned from the admin panel
 `tool_executions`. Every customer-owned table carries `tenant_id`.
 `admin_users` is the exception — platform staff, deliberately not tenant-scoped.
 
+## Deploying
+
+Set these on whichever host you use:
+
+```
+ENVIRONMENT=production
+SECRET_KEY=<python -c "import secrets; print(secrets.token_urlsafe(48))">
+ENCRYPTION_KEY=<the Fernet key — same one, or tenants must reconnect integrations>
+DATABASE_URL=postgresql+psycopg2://…neon.tech/neondb?sslmode=require
+OPENAI_API_KEY=sk-…
+PUBLIC_BACKEND_URL=https://<this service's own origin>   # Vapi calls back here
+CORS_ORIGINS=["https://<the frontend origin>"]
+```
+
+Then point the frontend at it: set `BACKEND_URL` to this service's origin in
+the Vercel project (Settings → Environment Variables) and redeploy. It is
+read server-side only, so it is never exposed to the browser.
+
+Migrations run with `alembic upgrade head` against the deployed `DATABASE_URL`.
+
+### Behind a TLS-terminating proxy (Render, Fly, nginx…)
+
+Start uvicorn with proxy headers, or the admin panel redirects to `http://`
+and the browser drops its `Secure` session cookie — an infinite login loop:
+
+```bash
+uvicorn app.main:app --host 0.0.0.0 --port $PORT \
+  --proxy-headers --forwarded-allow-ips="*"
+```
+
+`render.yaml` (repo root) already does this.
+
+### Render vs Vercel
+
+`backend/vercel.json` + `backend/api/index.py` exist if you want Vercel, but
+this service fits a **persistent process** much better, and `render.yaml` is
+the configuration I'd ship. Three concrete reasons:
+
+- **Size.** Vercel caps a Python function at 250 MB unzipped; these
+  requirements install to ~251 MB (numpy ~68 MB, openai ~20 MB, cryptography
+  ~20 MB, sqlalchemy ~18 MB).
+- **Cold starts on a live call.** Vapi routes *every turn* of a phone call to
+  `/api/vapi/custom-llm/...`. A cold start there — importing LangChain and
+  friends — is silence on the line while a real caller waits.
+- **Timeouts.** 10 s on Hobby, 60 s on Pro, applied to the streaming
+  custom-LLM response.
+
+None of these affect a plain CRUD API; they specifically affect the voice path.
+Note that Render's free tier also sleeps when idle, which reintroduces the
+cold-start problem — use a paid instance if real calls matter.
+
 ## Run
 ```bash
 uvicorn app.main:app --reload --port 5000

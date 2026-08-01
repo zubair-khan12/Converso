@@ -1,0 +1,12 @@
+# Keep the uploaded bundle small — Vercel's Python functions are capped at
+# 250 MB unzipped, and this project is already close to it. The local venv
+# alone is ~250 MB and must never be uploaded (Vercel installs from
+# requirements.txt itself).
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+.env
+.env.*
+!.env.example

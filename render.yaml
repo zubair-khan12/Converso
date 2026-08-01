@@ -1,0 +1,45 @@
+# Render blueprint for the FastAPI backend.
+#
+# Why not Vercel for this service: Vercel's Python runtime is serverless —
+# 250 MB unzipped per function (this backend installs ~251 MB, mostly numpy +
+# openai + cryptography), a 10 s timeout on Hobby, and a cold start on every
+# idle instance. That last one is the real problem: Vapi routes *each turn of a
+# live phone call* to /api/vapi/custom-llm/..., and a cold start there is
+# silence on the line while LangChain imports. A always-warm process avoids all
+# three. `backend/vercel.json` still exists if you want to try it anyway.
+services:
+  - type: web
+    name: converso-api
+    runtime: python
+    rootDir: backend
+    plan: starter # free tier sleeps when idle — same cold-start problem on calls
+    buildCommand: pip install -r requirements.txt
+    # --proxy-headers + --forwarded-allow-ips are required behind Render's TLS
+    # terminator: without them Starlette thinks the request is http, and the
+    # admin panel redirects to an http:// URL that then drops its Secure cookie.
+    startCommand: >-
+      alembic upgrade head &&
+      uvicorn app.main:app --host 0.0.0.0 --port $PORT
+      --proxy-headers --forwarded-allow-ips="*"
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: PYTHON_VERSION
+        value: "3.12"
+      # Secrets — set these in the Render dashboard, never in this file.
+      # `sync: false` means "prompt me, don't store it in git".
+      - key: SECRET_KEY
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      # Must be this service's own public https origin — Vapi calls back here.
+      - key: PUBLIC_BACKEND_URL
+        sync: false
+      # The deployed frontend origin, as a JSON list.
+      - key: CORS_ORIGINS
+        sync: false
