@@ -27,6 +27,6 @@ export const NAV: NavItem[] = [
   { label: "Knowledge Base", href: "/dashboard/knowledge", icon: BookOpen, requiresVapi: true },
   { label: "Phone Numbers", href: "/dashboard/phone-numbers", icon: Phone, requiresVapi: true },
   { label: "Call Logs", href: "/dashboard/call-logs", icon: ScrollText, soon: true },
-  { label: "Integrations", href: "/dashboard/integrations", icon: Blocks, soon: true },
+  { label: "Integrations", href: "/dashboard/integrations", icon: Blocks, requiresVapi: true },
   { label: "Settings", href: "/dashboard/settings", icon: Settings, soon: true },
 ];

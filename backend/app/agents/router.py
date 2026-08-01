@@ -9,7 +9,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..config import settings
 from ..database import get_db
 from ..deps import get_current_claims
 from ..integrations.service import get_vapi_api_key, get_vapi_public_key
@@ -20,12 +19,10 @@ from ..vapi.client import (
     DEFAULT_VOICE_ID,
     VOICE_IDS,
     VapiError,
-    build_assistant_payload,
-    create_assistant,
     delete_assistant,
-    update_assistant,
 )
 from .models import Agent
+from .provisioning import push_to_vapi
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
 
@@ -66,24 +63,6 @@ def _agent_public(agent: Agent) -> dict:
     }
 
 
-def _payload_for(agent: Agent) -> dict:
-    cfg = agent.config or {}
-    # A trained agent (knowledge base embedded) routes every turn through our
-    # LangGraph RAG brain via a custom-LLM URL; an untrained one uses Vapi's
-    # built-in model directly.
-    custom_llm_url = None
-    if cfg.get("rag_enabled"):
-        custom_llm_url = f"{settings.public_base_url}/api/vapi/custom-llm/{agent.id}"
-    return build_assistant_payload(
-        name=agent.name,
-        base_prompt=agent.base_prompt,
-        voice_id=agent.voice or DEFAULT_VOICE_ID,
-        temperature=cfg.get("temperature", 0.7),
-        first_message=cfg.get("first_message", ""),
-        custom_llm_url=custom_llm_url,
-    )
-
-
 def _require_vapi_key(db: Session, tenant_id: str) -> str:
     api_key = get_vapi_api_key(db, tenant_id)
     if api_key is None:
@@ -102,23 +81,6 @@ def _get_agent_or_404(db: Session, tenant_id: str, agent_id: str) -> Agent:
     if agent is None:
         raise HTTPException(status_code=404, detail="Agent not found.")
     return agent
-
-
-def _push_to_vapi(agent: Agent, api_key: str) -> None:
-    """Create or update the Vapi assistant to match the local row, recording
-    the sync result on the agent. Never raises — status carries the outcome."""
-    payload = _payload_for(agent)
-    try:
-        if agent.vapi_assistant_id:
-            update_assistant(api_key, agent.vapi_assistant_id, payload)
-        else:
-            created = create_assistant(api_key, payload)
-            agent.vapi_assistant_id = created.get("id")
-        agent.provisioning_status = "ready"
-        agent.provisioning_error = None
-    except VapiError as exc:
-        agent.provisioning_status = "failed"
-        agent.provisioning_error = exc.message
 
 
 @router.get("")
@@ -213,7 +175,7 @@ def create_agent(
 
     # Provision on Vapi synchronously. A failure leaves a retry-able "failed"
     # agent rather than losing the work the user just entered.
-    _push_to_vapi(agent, api_key)
+    push_to_vapi(db, agent, api_key)
     db.commit()
     db.refresh(agent)
     return _agent_public(agent)
@@ -254,7 +216,7 @@ def update_agent(
         agent.config = cfg
 
     # Mirror the change to Vapi (creates the assistant if a prior attempt failed).
-    _push_to_vapi(agent, api_key)
+    push_to_vapi(db, agent, api_key)
     db.commit()
     db.refresh(agent)
     return _agent_public(agent)
@@ -287,7 +249,7 @@ def train_agent(
     db.refresh(agent)
 
     # Rebuild on Vapi with the now-correct model (custom-LLM if trained).
-    _push_to_vapi(agent, api_key)
+    push_to_vapi(db, agent, api_key)
     db.commit()
     db.refresh(agent)
 
@@ -330,7 +292,7 @@ def retry_agent(
     agent = _get_agent_or_404(db, tenant_id, agent_id)
     api_key = _require_vapi_key(db, tenant_id)
 
-    _push_to_vapi(agent, api_key)
+    push_to_vapi(db, agent, api_key)
     db.commit()
     db.refresh(agent)
     return _agent_public(agent)

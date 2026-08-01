@@ -11,6 +11,7 @@ Two very different audiences live here:
 """
 import json
 import time
+import traceback
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
@@ -23,8 +24,9 @@ from ..config import settings
 from ..conversations.models import Conversation, ToolExecution
 from ..database import get_db
 from ..deps import get_current_claims
+from ..integrations.service import get_calcom_config
 from .client import VOICE_PROVIDER, VOICES
-from .rag_agent import run_rag
+from .rag_agent import FALLBACK_ANSWER, run_brain
 
 router = APIRouter(prefix="/api/vapi", tags=["vapi"])
 
@@ -64,9 +66,10 @@ def _messages_from_openai(raw: list[dict]) -> tuple[list[AnyMessage], str]:
 def _persist_trace(
     db: Session, agent: Agent, call_id: str | None, query: str, result: dict
 ) -> None:
-    """Save the retrieval trace so past queries are inspectable (the 'saved'
-    half of console+saved). Upserts a Conversation per Vapi call so several
-    turns of one call group together."""
+    """Save what the brain did this turn — the retrieval, plus any scheduling
+    tool calls — so past turns are inspectable (the 'saved' half of
+    console+saved). Upserts a Conversation per Vapi call so several turns of one
+    call group together."""
     conv = None
     if call_id:
         conv = (
@@ -88,50 +91,72 @@ def _persist_trace(
         db.flush()
 
     chunks = result.get("chunks", [])
-    db.add(
-        ToolExecution(
-            tenant_id=agent.tenant_id,
-            conversation_id=conv.id,
-            tool_name="knowledge_base_search",
-            input={"query": query},
-            output={
-                "answer": result.get("answer", ""),
-                "retrieval_ms": result.get("retrieval_ms"),
-                "chunks": [
-                    {
-                        "filename": c["filename"],
-                        "chunk_index": c["chunk_index"],
-                        "score": c["score"],
-                        "preview": c["content"][:200],
-                    }
-                    for c in chunks
-                ],
-            },
-            latency_ms=result.get("retrieval_ms"),
-            status="success",
+    if chunks or result.get("retrieval_ms"):
+        db.add(
+            ToolExecution(
+                tenant_id=agent.tenant_id,
+                conversation_id=conv.id,
+                tool_name="knowledge_base_search",
+                input={"query": query},
+                output={
+                    "answer": result.get("answer", ""),
+                    "retrieval_ms": result.get("retrieval_ms"),
+                    "chunks": [
+                        {
+                            "filename": c["filename"],
+                            "chunk_index": c["chunk_index"],
+                            "score": c["score"],
+                            "preview": c["content"][:200],
+                        }
+                        for c in chunks
+                    ],
+                },
+                latency_ms=result.get("retrieval_ms"),
+                status="success",
+            )
         )
-    )
+
+    # One row per scheduling tool the model actually chose to call, so a booking
+    # can be traced back to the exact slots offered and the arguments used.
+    for call in result.get("tool_calls", []):
+        db.add(
+            ToolExecution(
+                tenant_id=agent.tenant_id,
+                conversation_id=conv.id,
+                tool_name=call["tool_name"],
+                input=call["input"],
+                output={"result": call["output"]},
+                latency_ms=call.get("latency_ms"),
+                status=call.get("status", "success"),
+            )
+        )
     db.commit()
 
 
 def _run_turn(db: Session, agent_id: str, body: dict) -> str:
-    """Resolve the agent, run one RAG turn, persist the trace. Returns the
-    assistant's answer text. Runs entirely in a worker thread (sync DB + LLM)."""
+    """Resolve the agent, run one turn through the brain, persist the trace.
+    Returns the assistant's answer text. Runs entirely in a worker thread
+    (sync DB + LLM)."""
     agent = db.query(Agent).filter(Agent.id == agent_id).first()
     if agent is None:
         raise HTTPException(status_code=404, detail="Unknown agent.")
 
     history, query = _messages_from_openai(body.get("messages", []))
     call_id = (body.get("call") or {}).get("id")
-    temperature = float((agent.config or {}).get("temperature", 0.7))
+    cfg = agent.config or {}
+    temperature = float(cfg.get("temperature", 0.7))
 
-    result = run_rag(
+    result = run_brain(
         db=db,
         agent_id=str(agent.id),
         base_prompt=agent.base_prompt or "",
         temperature=temperature,
         query=query,
         history=history,
+        rag_enabled=bool(cfg.get("rag_enabled")),
+        # None unless Cal.com is connected *and* this is the agent it was
+        # linked to — the tenant's other agents get no booking tools.
+        calcom=get_calcom_config(db, str(agent.tenant_id), str(agent.id)),
     )
 
     try:
@@ -199,7 +224,16 @@ async def custom_llm(
 
     model = body.get("model") or settings.RAG_LLM_MODEL
     # Heavy work (DB + embeddings + LLM) off the event loop.
-    answer = await run_in_threadpool(_run_turn, db, agent_id, body)
+    #
+    # Whatever goes wrong in there, this endpoint must still answer with valid
+    # SSE. A 500 gives Vapi nothing to speak, so the caller just hears silence
+    # on a live phone call — far worse than an apology. The traceback is
+    # printed for us; the caller gets a sentence.
+    try:
+        answer = await run_in_threadpool(_run_turn, db, agent_id, body)
+    except Exception:
+        traceback.print_exc()
+        answer = FALLBACK_ANSWER
 
     return StreamingResponse(
         _sse_chunks(answer, model),

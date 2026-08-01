@@ -78,6 +78,34 @@ export type ProviderStatus = {
   masked_key: string | null;
 };
 
+/** A bookable event type on the tenant's Cal.com account. */
+export type CalcomEventType = {
+  id: number;
+  title: string;
+  slug: string | null;
+  length_minutes: number | null;
+};
+
+export type CalcomStatus = {
+  connected: boolean;
+  masked_key: string | null;
+  /** The Cal.com account meetings are booked under. */
+  organizer_email: string | null;
+  /** The account's own timezone — the agent speaks in it. */
+  time_zone: string | null;
+  event_types: CalcomEventType[];
+  /** Which event gets booked. Null until one is picked. */
+  event_type_id: number | null;
+  event_title: string | null;
+  length_minutes: number | null;
+  /** The one agent that can book. Only this agent gets the scheduling tools —
+   *  an event type and an agent together are what turn scheduling on. */
+  agent_id: string | null;
+  agent_name: string | null;
+  /** The ready-to-paste base-prompt snippet, or null until both are chosen. */
+  scheduling_prompt: string | null;
+};
+
 export type Agent = {
   id: string;
   name: string;
