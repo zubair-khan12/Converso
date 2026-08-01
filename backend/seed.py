@@ -9,7 +9,6 @@ import app.models  # noqa: F401  (register all tables)
 from app.agents.models import Agent
 from app.auth.models import User
 from app.database import SessionLocal
-from app.integrations.models import Integration
 from app.tenants.models import Tenant
 
 
@@ -38,13 +37,11 @@ def main() -> None:
             voice="alloy",
             config={"temperature": 0.4},
         )
-        integration = Integration(
-            tenant_id=tenant.id,
-            provider="calcom",
-            credentials={"api_key": "REPLACE_ME"},
-            config={"event_type_id": 0},
-        )
-        db.add_all([user, agent, integration])
+        # No Integration rows are seeded: every provider (Vapi, Twilio, Telnyx,
+        # Cal.com) is connected through the dashboard, which validates the
+        # credentials against the provider and encrypts them at rest. A
+        # placeholder row here would just read as "connected" while being unusable.
+        db.add_all([user, agent])
         db.commit()
         print(f"Seeded tenant={tenant.slug} user={user.email} agent='{agent.name}'")
     finally:

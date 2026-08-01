@@ -20,3 +20,11 @@ cryptography==43.0.3       # encrypting tenant Vapi API keys at rest
 
 # --- Vapi integration ---
 httpx==0.27.2               # calling Vapi's REST API
+
+# --- Knowledge base / RAG (LangGraph agent + embeddings) ---
+openai==2.48.0                    # embeddings + generation (platform key)
+langgraph==1.2.9                  # agentic workflow (KB = tool #1, Cal.com later)
+langchain-core==1.5.1
+langchain-openai==1.4.1
+langchain-text-splitters==1.1.2   # RecursiveCharacterTextSplitter for chunking
+pypdf==6.14.2                     # PDF text extraction

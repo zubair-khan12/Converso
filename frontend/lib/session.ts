@@ -4,7 +4,16 @@ import { cookies } from "next/headers";
 import { cache } from "react";
 
 import { BACKEND_URL, COOKIE_SECURE, SESSION_COOKIE } from "./env";
-import type { Agent, SessionUser, VapiStatus, Voice } from "./types";
+import type {
+  Agent,
+  CalcomStatus,
+  KnowledgeDocument,
+  PhoneNumber,
+  ProviderStatus,
+  SessionUser,
+  VapiStatus,
+  Voice,
+} from "./types";
 
 /** Exchange credentials with the backend. Returns the raw fetch Response. */
 export async function backendLogin(email: string, password: string): Promise<Response> {
@@ -130,6 +139,85 @@ export async function getAgent(id: string): Promise<Agent | null> {
   if (!res || !res.ok) return null;
   return res.json();
 }
+
+/** An agent's knowledge sources (documents), oldest first. Empty on any error. */
+export async function getDocuments(agentId: string): Promise<KnowledgeDocument[]> {
+  const token = await getSessionToken();
+  if (!token) return [];
+
+  const res = await fetch(`${BACKEND_URL}/api/agents/${agentId}/documents`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return [];
+  const { documents } = await res.json();
+  return documents as KnowledgeDocument[];
+}
+
+/** The tenant's phone numbers, newest first. Empty on any error. */
+export const getPhoneNumbers = cache(async (): Promise<PhoneNumber[]> => {
+  const token = await getSessionToken();
+  if (!token) return [];
+
+  const res = await fetch(`${BACKEND_URL}/api/telephony/numbers`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return [];
+  const { phone_numbers } = await res.json();
+  return phone_numbers as PhoneNumber[];
+});
+
+const DISCONNECTED_PROVIDER: ProviderStatus = { connected: false, masked_key: null };
+
+async function getProviderStatus(provider: "twilio" | "telnyx"): Promise<ProviderStatus> {
+  const token = await getSessionToken();
+  if (!token) return DISCONNECTED_PROVIDER;
+
+  const res = await fetch(`${BACKEND_URL}/api/integrations/${provider}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return DISCONNECTED_PROVIDER;
+  return res.json();
+}
+
+/** Whether the tenant has connected Twilio (for bring-your-own numbers). */
+export const getTwilioStatus = cache(() => getProviderStatus("twilio"));
+
+/** Whether the tenant has connected Telnyx (for bring-your-own numbers). */
+export const getTelnyxStatus = cache(() => getProviderStatus("telnyx"));
+
+const DISCONNECTED_CALCOM: CalcomStatus = {
+  connected: false,
+  masked_key: null,
+  organizer_email: null,
+  time_zone: null,
+  event_types: [],
+  event_type_id: null,
+  event_title: null,
+  length_minutes: null,
+  agent_id: null,
+  agent_name: null,
+  scheduling_prompt: null,
+};
+
+/** The tenant's Cal.com connection, including a live event-type list. */
+export const getCalcomStatus = cache(async (): Promise<CalcomStatus> => {
+  const token = await getSessionToken();
+  if (!token) return DISCONNECTED_CALCOM;
+
+  const res = await fetch(`${BACKEND_URL}/api/integrations/calcom`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return DISCONNECTED_CALCOM;
+  return res.json();
+});
 
 /** The catalog of built-in voices an agent can use. */
 export const getVoices = cache(async (): Promise<Voice[]> => {
