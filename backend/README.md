@@ -157,11 +157,18 @@ uvicorn app.main:app --host 0.0.0.0 --port $PORT \
 
 `render.yaml` (repo root) already does this.
 
+### On Vercel
+
+No `vercel.json` and no `api/index.py` — Vercel's FastAPI framework preset
+detects `app/main.py` and routes every path to it directly. **Do not add a
+catch-all rewrite**: Vercel now passes the *rewritten* destination to the app,
+so a `"/(.*)" -> "/api/index"` rewrite makes FastAPI see `/api/index` for every
+request and return 404 for everything, including `/api/auth/login`.
+
 ### Render vs Vercel
 
-`backend/vercel.json` + `backend/api/index.py` exist if you want Vercel, but
-this service fits a **persistent process** much better, and `render.yaml` is
-the configuration I'd ship. Three concrete reasons:
+`render.yaml` is the configuration I'd ship for this service — it fits a
+**persistent process** much better. Three concrete reasons:
 
 - **Size.** Vercel caps a Python function at 250 MB unzipped; these
   requirements install to ~251 MB (numpy ~68 MB, openai ~20 MB, cryptography
