@@ -11,7 +11,10 @@ and warns in development.
 """
 import sys
 
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from typing import Annotated
+
+from pydantic import field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 # The stock SECRET_KEY. Named so startup can refuse to run with it in
 # production — it signs the admin session cookie, and it's public in this repo.
@@ -71,7 +74,32 @@ class Settings(BaseSettings):
     # server talks to us server-to-server (no CORS needed), but this lets the
     # browser hit the API directly later if we want. Override in production
     # with the real frontend origin — never leave localhost open there.
-    CORS_ORIGINS: list[str] = ["http://localhost:3000", "http://localhost:3001"]
+    # `NoDecode` stops pydantic-settings JSON-decoding this in the env source,
+    # handing the raw string to the validator below instead. Without it, typing
+    # the obvious thing into a hosting dashboard (`https://app.example.com`)
+    # raises while the Settings object is being *constructed* — at import,
+    # before any error handling of ours exists — so the app dies with no usable
+    # message. On a serverless host that surfaces only as
+    # FUNCTION_INVOCATION_FAILED.
+    CORS_ORIGINS: Annotated[list[str], NoDecode] = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+    ]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def _parse_origins(cls, value):
+        """Accept JSON, a comma-separated list, or a single bare origin."""
+        if not isinstance(value, str):
+            return value
+        text = value.strip()
+        if not text:
+            return []
+        if text.startswith("["):
+            import json
+
+            return json.loads(text)
+        return [part.strip() for part in text.split(",") if part.strip()]
 
     @property
     def is_production(self) -> bool:
