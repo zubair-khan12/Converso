@@ -22,6 +22,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import { StatusPill, type PillTone } from "@/components/ui/status-pill";
 import {
   connectTelnyx,
   connectTwilio,
@@ -39,45 +41,25 @@ import type {
   TelephonyProvider,
 } from "@/lib/types";
 
-const fieldClass =
-  "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
-
 const PROVIDER_LABELS: Record<TelephonyProvider, string> = {
   vapi: "Vapi number",
   twilio: "Twilio",
   telnyx: "Telnyx",
 };
 
-const STATUS_STYLES: Record<PhoneNumberStatus, string> = {
-  ready: "bg-[rgba(107,142,35,0.14)] text-[#4b6115]",
-  pending: "bg-[rgba(233,162,59,0.16)] text-[var(--amber-ink)]",
-  failed: "bg-red-600/10 text-red-700",
+/** Short forms for the provider tabs — "Vapi number" wraps onto two lines in a
+ *  three-up tab strip, which makes the whole row look broken. */
+const PROVIDER_TABS: Record<TelephonyProvider, string> = {
+  vapi: "Vapi",
+  twilio: "Twilio",
+  telnyx: "Telnyx",
 };
 
-const STATUS_LABELS: Record<PhoneNumberStatus, string> = {
-  ready: "Live",
-  pending: "Provisioning…",
-  failed: "Failed",
+const STATUS: Record<PhoneNumberStatus, { tone: PillTone; label: string }> = {
+  ready: { tone: "success", label: "Live" },
+  pending: { tone: "pending", label: "Provisioning…" },
+  failed: { tone: "danger", label: "Failed" },
 };
-
-function StatusPill({ status }: { status: PhoneNumberStatus }) {
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[status]}`}
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {STATUS_LABELS[status]}
-    </span>
-  );
-}
-
-function ProviderBadge({ provider }: { provider: TelephonyProvider }) {
-  return (
-    <span className="inline-flex items-center rounded-full bg-[var(--surface-sunk)] px-2.5 py-1 text-xs font-medium text-[var(--ink-muted)]">
-      {PROVIDER_LABELS[provider]}
-    </span>
-  );
-}
 
 function PhoneNumberRow({
   phoneNumber,
@@ -129,7 +111,7 @@ function PhoneNumberRow({
   return (
     <div className="flex flex-col gap-3 rounded-xl border border-[var(--border)] p-4 sm:flex-row sm:items-center sm:justify-between">
       <div className="flex min-w-0 items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[rgba(244,201,93,0.22)] text-[var(--amber-ink)]">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-[var(--radius)] bg-[var(--accent-soft)] text-[var(--amber-ink)]">
           <Phone className="h-5 w-5" />
         </span>
         <div className="min-w-0">
@@ -138,25 +120,29 @@ function PhoneNumberRow({
               {phoneNumber.e164 ??
                 (phoneNumber.provisioning_status === "failed" ? "No number assigned" : "Provisioning…")}
             </p>
-            <StatusPill status={phoneNumber.provisioning_status} />
-            <ProviderBadge provider={phoneNumber.provider} />
+            <StatusPill tone={STATUS[phoneNumber.provisioning_status].tone}>
+              {STATUS[phoneNumber.provisioning_status].label}
+            </StatusPill>
+            <StatusPill tone="neutral" dot={false}>
+              {PROVIDER_LABELS[phoneNumber.provider]}
+            </StatusPill>
           </div>
           <p className="mt-0.5 text-sm text-[var(--ink-muted)]">
             {phoneNumber.agent_name ? `Routed to ${phoneNumber.agent_name}` : "Not attached to an agent"}
           </p>
           {phoneNumber.provisioning_status === "failed" && phoneNumber.provisioning_error && (
-            <p className="mt-1 text-xs text-red-700">{phoneNumber.provisioning_error}</p>
+            <p className="mt-1 text-xs text-[var(--danger)]">{phoneNumber.provisioning_error}</p>
           )}
-          {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
+          {error && <p className="mt-1 text-xs text-[var(--danger)]">{error}</p>}
         </div>
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center gap-2">
-        <select
+        <NativeSelect
           value={phoneNumber.agent_id ?? ""}
           onChange={(e) => onReassign(e.target.value)}
           disabled={busy !== null}
-          className={`${fieldClass} h-9 w-auto min-w-[9rem]`}
+          className="min-w-[10rem]"
           aria-label="Attached agent"
         >
           <option value="">— No agent —</option>
@@ -165,7 +151,7 @@ function PhoneNumberRow({
               {a.name}
             </option>
           ))}
-        </select>
+        </NativeSelect>
         {phoneNumber.provisioning_status === "failed" && (
           <Button size="sm" variant="outline" onClick={onRetry} disabled={busy !== null} className="gap-1.5">
             <RefreshCw className={`h-3.5 w-3.5 ${busy === "retry" ? "animate-spin" : ""}`} />
@@ -177,7 +163,7 @@ function PhoneNumberRow({
           variant="outline"
           onClick={onDelete}
           disabled={busy !== null}
-          className="gap-1.5 text-red-700 hover:bg-red-600/10 hover:text-red-700"
+          className="gap-1.5 text-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
         >
           <Trash2 className="h-3.5 w-3.5" />
           {busy === "delete" ? "Deleting…" : "Delete"}
@@ -226,7 +212,6 @@ function ByoConnectForm({
             placeholder="Account SID"
             value={sid}
             onChange={(e) => setSid(e.target.value)}
-            className="h-9"
             autoComplete="off"
           />
           <Input
@@ -234,7 +219,6 @@ function ByoConnectForm({
             placeholder="Auth Token"
             value={token}
             onChange={(e) => setToken(e.target.value)}
-            className="h-9"
             autoComplete="off"
           />
         </>
@@ -243,11 +227,10 @@ function ByoConnectForm({
           placeholder="Vapi credential UUID (from dashboard.vapi.ai/keys)"
           value={credentialId}
           onChange={(e) => setCredentialId(e.target.value)}
-          className="h-9"
           autoComplete="off"
         />
       )}
-      {error && <p className="text-xs text-red-700">{error}</p>}
+      {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
       <Button type="submit" size="sm" disabled={loading} className="w-fit gap-1.5">
         <KeyRound className="h-3.5 w-3.5" />
         {loading ? "Connecting…" : `Connect ${PROVIDER_LABELS[provider]}`}
@@ -325,7 +308,7 @@ function AddNumberCard({
                   : "text-[var(--ink-muted)] hover:text-[var(--ink)]"
               }`}
             >
-              {PROVIDER_LABELS[p]}
+              {PROVIDER_TABS[p]}
             </button>
           ))}
         </div>
@@ -346,7 +329,7 @@ function AddNumberCard({
                   value={areaCode}
                   onChange={(e) => setAreaCode(e.target.value)}
                   required
-                  className="h-9"
+      
                 />
                 <p className="text-xs text-[var(--ink-muted)]">
                   Vapi requires an area code to pick a number from — it
@@ -364,18 +347,17 @@ function AddNumberCard({
                   value={number}
                   onChange={(e) => setNumber(e.target.value)}
                   required
-                  className="h-9"
+      
                 />
               </div>
             )}
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="attach-agent">Attach to agent (optional)</Label>
-              <select
+              <NativeSelect
                 id="attach-agent"
                 value={agentId}
                 onChange={(e) => setAgentId(e.target.value)}
-                className={`${fieldClass} h-9`}
               >
                 <option value="">— Choose later —</option>
                 {agents.map((a) => (
@@ -383,16 +365,12 @@ function AddNumberCard({
                     {a.name}
                   </option>
                 ))}
-              </select>
+              </NativeSelect>
             </div>
 
-            {error && <p className="text-xs text-red-700">{error}</p>}
+            {error && <p className="text-xs text-[var(--danger)]">{error}</p>}
 
-            <Button
-              type="submit"
-              disabled={loading}
-              className="w-fit gap-1.5 bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] text-[var(--ink)] hover:opacity-95"
-            >
+            <Button type="submit" variant="brand" disabled={loading} className="w-fit">
               <Plus className="h-4 w-4" />
               {loading ? "Adding…" : provider === "vapi" ? "Get a number" : "Import number"}
             </Button>

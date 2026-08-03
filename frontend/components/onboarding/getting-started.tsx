@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowRight, ChevronLeft, ChevronRight, Pause, Play } from "lucide-react";
 
+import { Logo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { AUTOPLAY_MS, STEPS } from "@/components/onboarding/steps";
 
@@ -65,19 +66,13 @@ export function GettingStarted({ firstName }: { firstName: string }) {
   }
 
   return (
-    <main className="relative flex min-h-screen flex-col items-center bg-[radial-gradient(60%_45%_at_50%_0%,rgba(244,201,93,0.26),transparent_72%)] px-5 py-7 sm:px-8">
+    <main className="relative flex min-h-screen flex-col items-center bg-[radial-gradient(65%_45%_at_50%_0%,var(--accent-soft),transparent_72%)] px-5 py-7 sm:px-8">
       {/* Brand pinned to the true page corner; Skip mirrors it on the right. */}
-      <span className="absolute left-5 top-7 flex items-center gap-2.5 font-[family-name:var(--font-display)] text-base font-bold tracking-tight sm:left-8">
-        <span
-          aria-hidden
-          className="h-4 w-4 rounded-md bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] shadow-[inset_0_0_0_2px_rgba(255,255,255,0.4)]"
-        />
-        Converso
-      </span>
+      <Logo size="sm" className="absolute left-5 top-6 sm:left-8" />
       <button
         type="button"
         onClick={finish}
-        className="absolute right-5 top-6 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[rgba(31,41,55,0.06)] hover:text-[var(--ink)] sm:right-8"
+        className="absolute right-5 top-6 rounded-lg px-2.5 py-1.5 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:bg-[var(--surface-sunk)] hover:text-[var(--ink)] sm:right-8"
       >
         Skip
       </button>
@@ -90,7 +85,7 @@ export function GettingStarted({ firstName }: { firstName: string }) {
         <section
           aria-roledescription="carousel"
           aria-label="Getting started with Converso"
-          className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-lg)]"
+          className="overflow-hidden rounded-[calc(var(--radius)*1.6)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-lg)]"
           onMouseEnter={() => setHeld(true)}
           onMouseLeave={() => setHeld(false)}
           onFocusCapture={() => setHeld(true)}
@@ -116,11 +111,11 @@ export function GettingStarted({ firstName }: { firstName: string }) {
                   <article
                     key={step.id}
                     aria-hidden={!active}
-                    className="flex h-[340px] w-full shrink-0 select-none flex-col items-center justify-center gap-6 px-10 text-center"
+                    className="flex h-[360px] w-full shrink-0 sm:h-[340px] select-none flex-col items-center justify-center gap-6 px-6 text-center sm:px-10"
                   >
                     <span
                       className={[
-                        "grid h-20 w-20 place-items-center rounded-2xl bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] text-[var(--amber-ink)] shadow-[var(--shadow-md)] transition-all duration-500",
+                        "grid h-20 w-20 place-items-center rounded-[calc(var(--radius)*1.8)] bg-[linear-gradient(135deg,var(--gold),var(--amber))] text-white shadow-[var(--shadow-md)] transition-all duration-500",
                         active ? "scale-100 opacity-100" : "scale-90 opacity-0",
                       ].join(" ")}
                     >
@@ -174,7 +169,7 @@ export function GettingStarted({ firstName }: { firstName: string }) {
                       aria-current={active ? "step" : undefined}
                       className="group flex w-full items-center py-2"
                     >
-                      <span className="relative h-1 w-full overflow-hidden rounded-full bg-[var(--surface-sunk)] transition-colors group-hover:bg-[rgba(31,41,55,0.14)]">
+                      <span className="relative h-1 w-full overflow-hidden rounded-full bg-[var(--surface-sunk)] transition-colors group-hover:bg-[var(--border-strong)]">
                         <span
                           key={`${i}-${index}-${running}`}
                           className="absolute inset-0 origin-left rounded-full bg-[var(--amber)]"
@@ -222,11 +217,7 @@ export function GettingStarted({ firstName }: { firstName: string }) {
           </div>
         </section>
 
-        <Button
-          onClick={finish}
-          disabled={leaving}
-          className="h-11 w-full gap-1.5 bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] text-[0.95rem] text-[var(--ink)] hover:opacity-95"
-        >
+        <Button variant="brand" size="lg" onClick={finish} disabled={leaving} className="w-full">
           {leaving ? "Opening…" : "Go to dashboard"}
           <ArrowRight className="h-4 w-4" />
         </Button>

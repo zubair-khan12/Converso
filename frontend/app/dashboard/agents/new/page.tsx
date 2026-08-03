@@ -16,8 +16,8 @@ export default async function NewAgentPage() {
   const voices = await getVoices();
 
   return (
-    <div className="flex justify-center">
-      <div className="w-full max-w-2xl space-y-6 py-6">
+    <div>
+      <div className="w-full max-w-2xl space-y-6">
         <div>
           <Link
             href="/dashboard/agents"
@@ -26,10 +26,10 @@ export default async function NewAgentPage() {
             <ArrowLeft className="h-4 w-4" />
             Back to agents
           </Link>
-          <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight sm:text-3xl">
+          <h1 className="page-title">
             New voice agent
           </h1>
-          <p className="mt-1 text-[var(--ink-muted)]">
+          <p className="page-sub">
             Give it a name, a voice, and a prompt. It&apos;s provisioned on Vapi
             the moment you create it.
           </p>

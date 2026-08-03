@@ -108,6 +108,37 @@ reconnect their integrations when it happens.
   saved at all). Ownership is set from the child side; the exclusion list is
   computed from the mapper so a new relationship can't reintroduce the hazard.
 
+## Design system
+
+The brand comes from the logo: **navy `#16233F` + gold `#E0A020`**, deepening
+to `#B9770E`. The gold is deliberately darker than a pastel yellow — a light
+yellow can't carry ink on top of it and reads washed-out on a screen.
+
+Everything is a token in `app/globals.css` — accent tints (`--accent-soft`,
+`--accent-softer`), semantic status colours (`--success*`, `--danger*`,
+separate from the brand accent so a palette change can't make "failed" look
+fine), neutrals, shadows, radii. **No component should spell out a raw
+`rgba()` or hex**; that state is what made re-tuning the brand a hunt through
+a dozen files. The shadcn tokens (`--primary`, `--ring`, …) are mapped onto
+these, so `bg-primary` is the navy and the focus ring is the gold.
+
+Type is **Inter** for UI/body (`--font-body`, wired to Tailwind's `font-sans`)
+and **Plus Jakarta Sans** for headings (`--font-display`, `font-heading`);
+`h1–h3` pick up the display face automatically, and `.page-title`/`.page-sub`
+give every screen's header one rhythm.
+
+Shared pieces worth reaching for before writing markup:
+
+- `components/brand/logo.tsx` — `LogoMark` (vector, no image request) and
+  `Logo` (mark + wordmark). `tone="light"` for dark grounds.
+- `components/ui/status-pill.tsx` — one pill for agents, documents and phone
+  numbers, keyed by semantic tone.
+- `components/ui/textarea.tsx`, `native-select.tsx` — match `Input`; four
+  screens previously each pasted their own `fieldClass` string.
+- `Button` has a `brand` variant (the gold gradient) — don't paste the
+  gradient onto a button. Control heights line up across `Input` and `Button`
+  (sm 36 / default 40 / lg 44).
+
 ## Frontend conventions
 
 - `frontend/AGENTS.md` (imported by `frontend/CLAUDE.md`) warns this Next.js

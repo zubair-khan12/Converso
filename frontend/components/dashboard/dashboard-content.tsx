@@ -1,5 +1,14 @@
 import Link from "next/link";
-import { ArrowRight, Bot, Clock, PhoneCall, Users, type LucideIcon } from "lucide-react";
+import {
+  ArrowRight,
+  Blocks,
+  BookOpen,
+  Bot,
+  Clock,
+  PhoneCall,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,6 +21,12 @@ function greeting() {
   return "Good evening";
 }
 
+/**
+ * These read "—" or "0" until call logging lands. They're shown rather than
+ * hidden because the shape of the dashboard shouldn't change under someone
+ * the first time a call comes in — but the note under each number says
+ * plainly that there's nothing behind it yet.
+ */
 function StatCard({
   icon: Icon,
   label,
@@ -24,18 +39,60 @@ function StatCard({
   note: string;
 }) {
   return (
-    <Card>
+    <Card className="[--card-spacing:1.25rem]">
       <CardContent className="flex items-start gap-4">
-        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[rgba(244,201,93,0.22)] text-[var(--amber-ink)]">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--radius)] bg-[var(--accent-soft)] text-[var(--amber-ink)]">
           <Icon className="h-5 w-5" />
         </span>
         <div className="min-w-0">
-          <p className="text-sm text-[var(--ink-muted)]">{label}</p>
-          <p className="mt-0.5 font-[family-name:var(--font-display)] text-2xl font-bold tabular-nums">
+          <p className="text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-[var(--ink-subtle)]">
+            {label}
+          </p>
+          <p className="mt-1 font-[family-name:var(--font-display)] text-[1.75rem] font-extrabold leading-none tabular-nums text-[var(--navy)]">
             {value}
           </p>
-          <p className="mt-0.5 text-xs text-[var(--ink-muted)]">{note}</p>
+          <p className="mt-1.5 text-xs text-[var(--ink-muted)]">{note}</p>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ShortcutCard({
+  icon: Icon,
+  title,
+  body,
+  href,
+  cta,
+}: {
+  icon: LucideIcon;
+  title: string;
+  body: string;
+  href: string;
+  cta: string;
+}) {
+  return (
+    <Card className="[--card-spacing:1.25rem]">
+      <CardContent className="flex h-full flex-col items-start gap-3">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--radius)] bg-[var(--accent-soft)] text-[var(--amber-ink)]">
+          <Icon className="h-5 w-5" />
+        </span>
+        <div>
+          <p className="font-[family-name:var(--font-display)] text-[0.9375rem] font-bold">
+            {title}
+          </p>
+          <p className="mt-1 text-sm text-[var(--ink-muted)]">{body}</p>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          render={<Link href={href} />}
+          nativeButton={false}
+          className="mt-auto -ml-3 text-[var(--amber-ink)]"
+        >
+          {cta}
+          <ArrowRight className="h-4 w-4" />
+        </Button>
       </CardContent>
     </Card>
   );
@@ -46,15 +103,26 @@ export function DashboardContent({ user }: { user: SessionUser }) {
     user.name?.split(/\s+/)[0] ?? user.email.split("@")[0] ?? "there";
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-7">
+    <div className="space-y-8">
       {/* Header */}
-      <div>
-        <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight sm:text-3xl">
-          {greeting()}, {firstName}! <span aria-hidden>👋</span>
-        </h1>
-        <p className="mt-1 text-[var(--ink-muted)]">
-          Here&apos;s what&apos;s happening with your voice agents.
-        </p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="page-title">
+            {greeting()}, {firstName}
+          </h1>
+          <p className="page-sub">
+            Here&apos;s what&apos;s happening with your voice agents.
+          </p>
+        </div>
+        <Button
+          variant="brand"
+          render={<Link href="/dashboard/agents" />}
+          nativeButton={false}
+          className="w-full sm:w-auto"
+        >
+          Manage agents
+          <ArrowRight className="h-4 w-4" />
+        </Button>
       </div>
 
       {/* Stat cards */}
@@ -65,31 +133,32 @@ export function DashboardContent({ user }: { user: SessionUser }) {
         <StatCard icon={Users} label="Unique callers" value="0" note="No calls yet" />
       </div>
 
-      {/* Agents live on their own page now; this just points there. */}
-      <Card>
-        <CardContent className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
-          <div className="flex items-start gap-4">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[rgba(244,201,93,0.22)] text-[var(--amber-ink)]">
-              <Bot className="h-5 w-5" />
-            </span>
-            <div>
-              <p className="font-semibold text-[var(--ink)]">Your voice agents</p>
-              <p className="mt-0.5 text-sm text-[var(--ink-muted)]">
-                Create, edit, and manage the agents that answer your calls.
-              </p>
-            </div>
-          </div>
-          <Button
-            size="lg"
-            render={<Link href="/dashboard/agents" />}
-            nativeButton={false}
-            className="gap-1.5 bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] px-4 text-[var(--ink)] hover:opacity-95"
-          >
-            Manage agents
-            <ArrowRight className="h-4 w-4" />
-          </Button>
-        </CardContent>
-      </Card>
+      <section className="space-y-4">
+        <h2 className="text-lg font-bold tracking-[-0.02em]">Pick up where you left off</h2>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <ShortcutCard
+            icon={Bot}
+            title="Voice agents"
+            body="Create, edit, and test the agents that answer your calls."
+            href="/dashboard/agents"
+            cta="Open agents"
+          />
+          <ShortcutCard
+            icon={BookOpen}
+            title="Knowledge base"
+            body="Feed an agent your documents so it answers from what you know."
+            href="/dashboard/knowledge"
+            cta="Add knowledge"
+          />
+          <ShortcutCard
+            icon={Blocks}
+            title="Integrations"
+            body="Let an agent check your calendar and book the meeting mid-call."
+            href="/dashboard/integrations"
+            cta="Connect a tool"
+          />
+        </div>
+      </section>
     </div>
   );
 }

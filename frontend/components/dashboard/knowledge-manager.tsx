@@ -24,6 +24,8 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { StatusPill, type PillTone } from "@/components/ui/status-pill";
+import { Textarea } from "@/components/ui/textarea";
 import {
   addKnowledgeText,
   deleteDocument,
@@ -32,27 +34,12 @@ import {
 } from "@/lib/api";
 import type { Agent, DocumentStatus, KnowledgeDocument, TrainingSummary } from "@/lib/types";
 
-const fieldClass =
-  "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
-
-const DOC_STATUS: Record<DocumentStatus, { label: string; className: string }> = {
-  ready: { label: "Trained", className: "bg-[rgba(107,142,35,0.14)] text-[#4b6115]" },
-  pending: { label: "Not trained", className: "bg-[rgba(233,162,59,0.16)] text-[var(--amber-ink)]" },
-  processing: { label: "Embedding…", className: "bg-[rgba(233,162,59,0.16)] text-[var(--amber-ink)]" },
-  failed: { label: "Failed", className: "bg-red-600/10 text-red-700" },
+const DOC_STATUS: Record<DocumentStatus, { label: string; tone: PillTone }> = {
+  ready: { label: "Trained", tone: "success" },
+  pending: { label: "Not trained", tone: "pending" },
+  processing: { label: "Embedding…", tone: "pending" },
+  failed: { label: "Failed", tone: "danger" },
 };
-
-function DocStatusPill({ status }: { status: DocumentStatus }) {
-  const s = DOC_STATUS[status];
-  return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${s.className}`}
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {s.label}
-    </span>
-  );
-}
 
 function formatSize(bytes: number | null): string {
   if (!bytes) return "";
@@ -148,17 +135,17 @@ export function KnowledgeManager({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight sm:text-3xl">
+            <h1 className="page-title">
               Knowledge base
             </h1>
             {agent.knowledge_trained && (
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-[rgba(107,142,35,0.14)] px-2.5 py-1 text-xs font-semibold text-[#4b6115]">
+              <StatusPill tone="success" dot={false}>
                 <Sparkles className="h-3.5 w-3.5" />
                 RAG enabled
-              </span>
+              </StatusPill>
             )}
           </div>
-          <p className="mt-1 text-[var(--ink-muted)]">
+          <p className="page-sub">
             Give <span className="font-medium text-[var(--ink)]">{agent.name}</span>{" "}
             text and documents to answer from, then train it.
           </p>
@@ -177,7 +164,7 @@ export function KnowledgeManager({
       {error && (
         <p
           role="alert"
-          className="rounded-lg border border-red-600/20 bg-red-600/8 px-3 py-2.5 text-sm text-red-700"
+          className="rounded-lg border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-sm text-[var(--danger)]"
         >
           {error}
         </p>
@@ -198,18 +185,16 @@ export function KnowledgeManager({
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="e.g. Business hours & location"
-                  className="h-9"
                 />
               </div>
               <div className="flex flex-col gap-2">
                 <Label htmlFor="kb-text">Text</Label>
-                <textarea
+                <Textarea
                   id="kb-text"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder="Paste anything the agent should know — hours, policies, FAQs…"
                   rows={6}
-                  className={`${fieldClass} resize-y leading-relaxed`}
                   required
                 />
               </div>
@@ -248,7 +233,7 @@ export function KnowledgeManager({
               type="button"
               onClick={() => fileInput.current?.click()}
               disabled={busy !== null}
-              className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-sunk)] px-4 py-10 text-center transition-colors hover:border-[var(--amber)] hover:bg-[rgba(244,201,93,0.06)] disabled:cursor-not-allowed disabled:opacity-60"
+              className="flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-[var(--border)] bg-[var(--surface-sunk)] px-4 py-10 text-center transition-colors hover:border-[var(--amber)] hover:bg-[var(--accent-softer)] disabled:cursor-not-allowed disabled:opacity-60"
             >
               {busy === "file" ? (
                 <Loader2 className="h-6 w-6 animate-spin text-[var(--amber-ink)]" />
@@ -278,9 +263,9 @@ export function KnowledgeManager({
           <CardAction className="self-center">
             <Button
               size="lg"
+              variant="brand"
               onClick={onTrain}
               disabled={busy !== null || documents.length === 0}
-              className="gap-1.5 bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] px-4 text-[var(--ink)] hover:opacity-95"
               title={
                 documents.length === 0
                   ? "Add at least one source first"
@@ -298,7 +283,7 @@ export function KnowledgeManager({
         </CardHeader>
         <CardContent>
           {trained && (
-            <div className="mb-4 flex items-start gap-2 rounded-lg border border-[rgba(107,142,35,0.3)] bg-[rgba(107,142,35,0.08)] px-3 py-2.5 text-sm text-[#3f5312]">
+            <div className="mb-4 flex items-start gap-2 rounded-lg border border-[var(--success)]/30 bg-[var(--success-soft)] px-3 py-2.5 text-sm text-[var(--success-ink)]">
               <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
               <span>
                 Embedded {trained.documents_trained} source
@@ -321,7 +306,7 @@ export function KnowledgeManager({
 
           {documents.length === 0 ? (
             <div className="flex flex-col items-center gap-2 py-10 text-center">
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-[rgba(244,201,93,0.22)] text-[var(--amber-ink)]">
+              <span className="grid h-11 w-11 place-items-center rounded-[var(--radius)] bg-[var(--accent-soft)] text-[var(--amber-ink)]">
                 <BookOpen className="h-5 w-5" />
               </span>
               <p className="text-sm text-[var(--ink-muted)]">
@@ -344,7 +329,9 @@ export function KnowledgeManager({
                         <p className="truncate font-medium text-[var(--ink)]">
                           {doc.filename}
                         </p>
-                        <DocStatusPill status={doc.status} />
+                        <StatusPill tone={DOC_STATUS[doc.status].tone}>
+                          {DOC_STATUS[doc.status].label}
+                        </StatusPill>
                       </div>
                       <p className="mt-0.5 text-xs text-[var(--ink-muted)]">
                         {doc.status === "ready"
@@ -353,7 +340,7 @@ export function KnowledgeManager({
                         {formatSize(doc.size_bytes) && ` · ${formatSize(doc.size_bytes)}`}
                       </p>
                       {doc.status === "failed" && doc.error && (
-                        <p className="mt-1 text-xs text-red-700">{doc.error}</p>
+                        <p className="mt-1 text-xs text-[var(--danger)]">{doc.error}</p>
                       )}
                     </div>
                   </div>
@@ -362,7 +349,7 @@ export function KnowledgeManager({
                     variant="outline"
                     onClick={() => onDelete(doc)}
                     disabled={deletingId !== null}
-                    className="shrink-0 gap-1.5 text-red-700 hover:bg-red-600/10 hover:text-red-700"
+                    className="shrink-0 gap-1.5 text-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
                   >
                     <Trash2 className="h-3.5 w-3.5" />
                     {deletingId === doc.id ? "Removing…" : "Remove"}
@@ -380,7 +367,7 @@ export function KnowledgeManager({
             matched chunks + scores) prints to the backend console.
           </p>
           {untrainedFailures.length > 0 && !trained && (
-            <p className="mt-1 text-xs text-red-700">
+            <p className="mt-1 text-xs text-[var(--danger)]">
               {untrainedFailures.length} source
               {untrainedFailures.length === 1 ? "" : "s"} failed to embed — check
               that OPENAI_API_KEY is configured, then train again.

@@ -20,10 +20,10 @@ export default async function AgentsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight sm:text-3xl">
+        <h1 className="page-title">
           Agents
         </h1>
-        <p className="mt-1 text-[var(--ink-muted)]">
+        <p className="page-sub">
           Create and manage the voice agents that answer your calls.
         </p>
       </div>

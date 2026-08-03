@@ -18,10 +18,10 @@ export default async function IntegrationsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight sm:text-3xl">
+        <h1 className="page-title">
           Integrations
         </h1>
-        <p className="mt-1 text-[var(--ink-muted)]">
+        <p className="page-sub">
           Connect the tools your agents can use mid-call.
         </p>
       </div>

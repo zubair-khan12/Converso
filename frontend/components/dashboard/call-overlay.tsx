@@ -279,7 +279,7 @@ export function CallOverlay({ agent, onClose }: { agent: Agent; onClose: () => v
 
         {/* Core */}
         <span
-          className="relative grid h-44 w-44 place-items-center rounded-full bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] shadow-[0_0_60px_-8px_rgba(233,162,59,0.6)] transition-transform duration-150 ease-out group-hover:from-red-400 group-hover:to-red-500"
+          className="relative grid h-44 w-44 place-items-center rounded-full bg-[linear-gradient(135deg,var(--gold),var(--amber))] shadow-[0_0_60px_-8px_var(--accent-line)] transition-transform duration-150 ease-out group-hover:from-red-400 group-hover:to-red-500"
           style={{ transform: `scale(${orbScale})` }}
         >
           <span className="font-[family-name:var(--font-display)] text-5xl font-bold text-[var(--amber-ink)] group-hover:hidden">
@@ -321,7 +321,7 @@ export function CallOverlay({ agent, onClose }: { agent: Agent; onClose: () => v
         <button
           type="button"
           onClick={endCall}
-          className="flex items-center gap-2 rounded-full bg-red-500 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-red-600"
+          className="flex items-center gap-2 rounded-full bg-[var(--danger)] px-6 py-3 text-sm font-semibold text-white transition-colors hover:brightness-110"
         >
           <PhoneOff className="h-4 w-4" />
           {state === "ended" ? "Close" : "End call"}

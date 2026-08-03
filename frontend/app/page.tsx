@@ -1,4 +1,6 @@
 import Link from "next/link";
+
+import { LogoMark } from "@/components/brand/logo";
 import styles from "./page.module.css";
 
 const services = [
@@ -41,8 +43,8 @@ export default function Home() {
     <main className={styles.page}>
       <header className={styles.nav}>
         <Link href="/" className={styles.brand} aria-label="Converso home">
-          <span className={styles.brandMark} aria-hidden />
-          Converso
+          <LogoMark className={styles.brandMark} />
+          converso
         </Link>
         <Link href="/login" className={styles.navSignIn}>
           Sign in
@@ -111,7 +113,7 @@ export default function Home() {
       </section>
 
       <footer className={styles.footer}>
-        <span>© 2026 Converso</span>
+        <span>© {new Date().getFullYear()} Converso</span>
         <Link href="/login" className={styles.footerLink}>
           Sign in →
         </Link>

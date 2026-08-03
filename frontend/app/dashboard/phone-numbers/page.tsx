@@ -29,10 +29,10 @@ export default async function PhoneNumbersPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight sm:text-3xl">
+        <h1 className="page-title">
           Phone numbers
         </h1>
-        <p className="mt-1 text-[var(--ink-muted)]">
+        <p className="page-sub">
           Attach a real phone number to an agent so callers can reach it directly.
         </p>
       </div>

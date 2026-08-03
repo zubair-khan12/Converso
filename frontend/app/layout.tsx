@@ -1,23 +1,28 @@
 import type { Metadata } from "next";
-import { Bricolage_Grotesque, Inter, Geist } from "next/font/google";
+import { Inter, Plus_Jakarta_Sans } from "next/font/google";
+
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
-
-const display = Bricolage_Grotesque({
-  variable: "--font-display",
+/* Inter for everything you read and operate — it was drawn for screen UI, and
+   its wide weight range keeps labels, body copy and data on one family.
+   Plus Jakarta Sans carries the headings: geometric enough to feel like a
+   product brand, humanist enough not to fight Inter underneath it. */
+const inter = Inter({
+  variable: "--font-inter",
   subsets: ["latin"],
-  weight: ["500", "600", "700", "800"],
+  display: "swap",
 });
 
-const body = Inter({
-  variable: "--font-body",
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
   subsets: ["latin"],
+  weight: ["500", "600", "700", "800"],
+  display: "swap",
 });
 
 export const metadata: Metadata = {
-  title: "Converso — Voice AI for every business",
+  title: "Converso — AI voice agents for every business",
   description:
     "Build, ground, and deploy AI voice agents that answer the phone, know your business, and book the meeting.",
 };
@@ -26,7 +31,7 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={cn(display.variable, body.variable, "font-sans", geist.variable)}>
+    <html lang="en" className={cn(inter.variable, jakarta.variable, "font-sans")}>
       <body>{children}</body>
     </html>
   );

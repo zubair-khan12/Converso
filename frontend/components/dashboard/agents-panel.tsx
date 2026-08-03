@@ -6,8 +6,10 @@ import { useState } from "react";
 import {
   BookOpen,
   Bot,
+  Gauge,
   Lock,
   MessagesSquare,
+  Mic,
   Pencil,
   Phone,
   Plus,
@@ -20,44 +22,44 @@ import {
 import { CallOverlay } from "@/components/dashboard/call-overlay";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardAction,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { StatusPill, type PillTone } from "@/components/ui/status-pill";
 import { deleteAgent, retryAgent } from "@/lib/api";
 import type { Agent, ProvisioningStatus } from "@/lib/types";
 
-const STATUS_STYLES: Record<ProvisioningStatus, string> = {
-  ready: "bg-[rgba(107,142,35,0.14)] text-[#4b6115]",
-  pending: "bg-[rgba(233,162,59,0.16)] text-[var(--amber-ink)]",
-  failed: "bg-red-600/10 text-red-700",
+const STATUS: Record<ProvisioningStatus, { tone: PillTone; label: string }> = {
+  ready: { tone: "success", label: "Live on Vapi" },
+  pending: { tone: "pending", label: "Provisioning…" },
+  failed: { tone: "danger", label: "Sync failed" },
 };
 
-const STATUS_LABELS: Record<ProvisioningStatus, string> = {
-  ready: "Live on Vapi",
-  pending: "Provisioning…",
-  failed: "Sync failed",
-};
-
-function StatusPill({ status }: { status: ProvisioningStatus }) {
+/** One labelled fact about the agent. Keeps the card's body on a grid instead
+ *  of running voice and temperature together in a single grey sentence. */
+function Meta({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof Mic;
+  label: string;
+  value: string;
+}) {
   return (
-    <span
-      className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ${STATUS_STYLES[status]}`}
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {STATUS_LABELS[status]}
-    </span>
+    <div className="min-w-0">
+      <p className="flex items-center gap-1.5 text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-[var(--ink-subtle)]">
+        <Icon className="h-3.5 w-3.5" />
+        {label}
+      </p>
+      <p className="mt-0.5 truncate text-sm font-medium text-[var(--ink)]">{value}</p>
+    </div>
   );
 }
 
-function AgentRow({ agent, onTest }: { agent: Agent; onTest: (a: Agent) => void }) {
+function AgentCard({ agent, onTest }: { agent: Agent; onTest: (a: Agent) => void }) {
   const router = useRouter();
   const [busy, setBusy] = useState<"delete" | "retry" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const testable = agent.provisioning_status === "ready";
+  const status = STATUS[agent.provisioning_status];
 
   async function onDelete() {
     if (!confirm(`Delete "${agent.name}"? This removes it from Vapi too.`)) return;
@@ -84,113 +86,98 @@ function AgentRow({ agent, onTest }: { agent: Agent; onTest: (a: Agent) => void 
     router.refresh();
   }
 
-  // Clicking the row opens the test call (for ready agents). Action buttons
-  // stop propagation so they don't also start a call.
   return (
-    <div
-      role={testable ? "button" : undefined}
-      tabIndex={testable ? 0 : undefined}
-      onClick={testable ? () => onTest(agent) : undefined}
-      onKeyDown={
-        testable
-          ? (e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onTest(agent);
-              }
-            }
-          : undefined
-      }
-      title={testable ? "Click to test this agent by web" : undefined}
-      className={`flex flex-col gap-3 rounded-xl border border-[var(--border)] p-4 transition-colors sm:flex-row sm:items-center sm:justify-between ${
-        testable
-          ? "cursor-pointer hover:border-[var(--amber)] hover:bg-[rgba(244,201,93,0.06)]"
-          : ""
-      }`}
-    >
-      <div className="flex min-w-0 items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[rgba(244,201,93,0.22)] text-[var(--amber-ink)]">
-          <Bot className="h-5 w-5" />
+    <article className="flex flex-col rounded-[calc(var(--radius)*1.4)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]">
+      <div className="flex items-start gap-3 p-5 pb-4">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--radius)] bg-[var(--accent-soft)] text-[var(--amber-ink)]">
+          <Bot className="h-5.5 w-5.5" />
         </span>
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <p className="font-semibold text-[var(--ink)]">{agent.name}</p>
-            <StatusPill status={agent.provisioning_status} />
+        <div className="min-w-0 flex-1">
+          <h3
+            title={agent.name}
+            className="truncate font-[family-name:var(--font-display)] text-base font-bold tracking-[-0.01em]"
+          >
+            {agent.name}
+          </h3>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            <StatusPill tone={status.tone}>{status.label}</StatusPill>
             {agent.knowledge_trained && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(107,142,35,0.14)] px-2 py-0.5 text-xs font-semibold text-[#4b6115]">
+              <StatusPill tone="success" dot={false}>
                 <Sparkles className="h-3 w-3" />
                 Knowledge
-              </span>
+              </StatusPill>
             )}
           </div>
-          <p className="mt-0.5 text-sm text-[var(--ink-muted)]">
-            Voice: {agent.voice_id ?? "—"} · Temp: {agent.temperature ?? "—"}
-          </p>
-          {agent.provisioning_status === "failed" && agent.provisioning_error && (
-            <p className="mt-1 text-xs text-red-700">{agent.provisioning_error}</p>
-          )}
-          {error && <p className="mt-1 text-xs text-red-700">{error}</p>}
         </div>
       </div>
 
-      <div
-        className="flex shrink-0 items-center gap-2"
-        onClick={(e) => e.stopPropagation()}
-      >
-        {testable && (
-          <Button
-            size="sm"
-            onClick={() => onTest(agent)}
-            className="gap-1.5 bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] text-[var(--ink)] hover:opacity-95"
-          >
-            <Phone className="h-3.5 w-3.5" />
-            Test
+      <div className="grid grid-cols-2 gap-4 border-y border-[var(--border)] bg-[var(--surface-sunk)]/60 px-5 py-3.5">
+        <Meta icon={Mic} label="Voice" value={agent.voice_id ?? "Default"} />
+        <Meta
+          icon={Gauge}
+          label="Temperature"
+          value={agent.temperature != null ? String(agent.temperature) : "—"}
+        />
+      </div>
+
+      {(error || (agent.provisioning_status === "failed" && agent.provisioning_error)) && (
+        <p className="mx-5 mt-4 rounded-[var(--radius)] border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2 text-xs text-[var(--danger)]">
+          {error ?? agent.provisioning_error}
+        </p>
+      )}
+
+      {/* Test is the thing you came here to do, so it gets the width and the
+          brand fill; everything else is an icon with an accessible name. */}
+      <div className="flex items-center gap-2 p-5 pt-4">
+        {testable ? (
+          <Button variant="brand" onClick={() => onTest(agent)} className="flex-1">
+            <Phone className="h-4 w-4" />
+            Test call
+          </Button>
+        ) : agent.provisioning_status === "failed" ? (
+          <Button variant="outline" onClick={onRetry} disabled={busy !== null} className="flex-1">
+            <RefreshCw className={`h-4 w-4 ${busy === "retry" ? "animate-spin" : ""}`} />
+            Retry sync
+          </Button>
+        ) : (
+          <Button variant="outline" disabled className="flex-1">
+            Provisioning…
           </Button>
         )}
-        {agent.provisioning_status === "failed" && (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={onRetry}
-            disabled={busy !== null}
-            className="gap-1.5"
-          >
-            <RefreshCw className={`h-3.5 w-3.5 ${busy === "retry" ? "animate-spin" : ""}`} />
-            Retry
-          </Button>
-        )}
+
         <Button
-          size="sm"
+          size="icon"
           variant="outline"
+          title="Knowledge base"
+          aria-label={`Knowledge base for ${agent.name}`}
           render={<Link href={`/dashboard/knowledge?agent=${agent.id}`} />}
           nativeButton={false}
-          className="gap-1.5"
         >
-          <BookOpen className="h-3.5 w-3.5" />
-          Knowledge
+          <BookOpen className="h-4 w-4" />
         </Button>
         <Button
-          size="sm"
+          size="icon"
           variant="outline"
+          title="Edit agent"
+          aria-label={`Edit ${agent.name}`}
           render={<Link href={`/dashboard/agents/${agent.id}`} />}
           nativeButton={false}
-          className="gap-1.5"
         >
-          <Pencil className="h-3.5 w-3.5" />
-          Edit
+          <Pencil className="h-4 w-4" />
         </Button>
         <Button
-          size="sm"
+          size="icon"
           variant="outline"
           onClick={onDelete}
           disabled={busy !== null}
-          className="gap-1.5 text-red-700 hover:bg-red-600/10 hover:text-red-700"
+          title="Delete agent"
+          aria-label={`Delete ${agent.name}`}
+          className="text-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
         >
-          <Trash2 className="h-3.5 w-3.5" />
-          {busy === "delete" ? "Deleting…" : "Delete"}
+          <Trash2 className="h-4 w-4" />
         </Button>
       </div>
-    </div>
+    </article>
   );
 }
 
@@ -203,70 +190,68 @@ export function AgentsPanel({ agents }: { agents: Agent[] }) {
   const [callAgent, setCallAgent] = useState<Agent | null>(null);
 
   return (
-    <section className="space-y-4">
-      <div
-        role="tablist"
-        aria-label="Agent type"
-        className="grid w-full grid-cols-2 gap-1 rounded-xl border border-[var(--border)] bg-[var(--surface-sunk)] p-1"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected
-          className="flex items-center justify-center gap-2 rounded-lg bg-[var(--surface)] px-3.5 py-2 text-sm font-semibold text-[var(--ink)] shadow-[var(--shadow-sm)] transition-colors"
+    <section className="space-y-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div
+          role="tablist"
+          aria-label="Agent type"
+          className="grid w-full grid-cols-2 gap-1 rounded-[calc(var(--radius)*1.2)] border border-[var(--border)] bg-[var(--surface-sunk)] p-1 sm:w-auto sm:min-w-[22rem]"
         >
-          <Radio className="h-4 w-4 text-[var(--amber-ink)]" />
-          Voice agents
-        </button>
-
-        {/* Locked tab. aria-disabled (not `disabled`) so it stays hoverable,
-            focusable, and can announce why it's unavailable. */}
-        <div className="group relative">
           <button
             type="button"
             role="tab"
-            aria-selected={false}
-            aria-disabled
-            aria-describedby="chat-agents-soon"
-            className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-sm font-medium text-[var(--ink-muted)] opacity-70 transition-opacity group-hover:opacity-100"
+            aria-selected
+            className="flex items-center justify-center gap-2 rounded-[var(--radius)] bg-[var(--surface)] px-3.5 py-2 text-sm font-semibold text-[var(--ink)] shadow-[var(--shadow-sm)] transition-colors"
           >
-            <MessagesSquare className="h-4 w-4" />
-            Chat agents
-            <Lock className="h-3.5 w-3.5" />
+            <Radio className="h-4 w-4 text-[var(--amber)]" />
+            Voice agents
           </button>
 
-          <span
-            id="chat-agents-soon"
-            role="tooltip"
-            className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 flex -translate-x-1/2 translate-y-1 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--ink)] px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-[var(--shadow-md)] transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
-          >
-            <Lock className="h-3 w-3" />
-            Launching soon
+          {/* Locked tab. aria-disabled (not `disabled`) so it stays hoverable,
+              focusable, and can announce why it's unavailable. */}
+          <div className="group relative">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={false}
+              aria-disabled
+              aria-describedby="chat-agents-soon"
+              className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-[var(--radius)] px-3.5 py-2 text-sm font-medium text-[var(--ink-muted)] opacity-70 transition-opacity group-hover:opacity-100"
+            >
+              <MessagesSquare className="h-4 w-4" />
+              Chat agents
+              <Lock className="h-3.5 w-3.5" />
+            </button>
+
             <span
-              aria-hidden
-              className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 rounded-[1px] bg-[var(--ink)]"
-            />
-          </span>
+              id="chat-agents-soon"
+              role="tooltip"
+              className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 flex -translate-x-1/2 translate-y-1 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--navy)] px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-[var(--shadow-md)] transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
+            >
+              <Lock className="h-3 w-3" />
+              Launching soon
+              <span
+                aria-hidden
+                className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 rounded-[1px] bg-[var(--navy)]"
+              />
+            </span>
+          </div>
         </div>
+
+        <Button
+          variant="brand"
+          render={<Link href="/dashboard/agents/new" />}
+          nativeButton={false}
+          className="w-full sm:w-auto"
+        >
+          <Plus className="h-4 w-4" />
+          New agent
+        </Button>
       </div>
 
-      <Card role="tabpanel" aria-label="Voice agents">
-        <CardHeader>
-          <CardTitle className="text-base">My agents</CardTitle>
-          <CardAction className="self-center">
-            <Button
-              size="lg"
-              render={<Link href="/dashboard/agents/new" />}
-              nativeButton={false}
-              className="gap-1.5 bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] px-3.5 text-[var(--ink)] hover:opacity-95"
-            >
-              <Plus className="h-4 w-4" />
-              New agent
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {agents.length === 0 ? (
+      <div role="tabpanel" aria-label="Voice agents">
+        {agents.length === 0 ? (
+          <div className="rounded-[calc(var(--radius)*1.4)] border border-[var(--border)] bg-[var(--surface)]">
             <EmptyState
               icon={Bot}
               title="No agents to show yet"
@@ -276,22 +261,24 @@ export function AgentsPanel({ agents }: { agents: Agent[] }) {
                   variant="outline"
                   render={<Link href="/dashboard/agents/new" />}
                   nativeButton={false}
-                  className="gap-1.5"
                 >
                   <Plus className="h-4 w-4" />
                   Create your first agent
                 </Button>
               }
             />
-          ) : (
-            <div className="space-y-3">
-              {agents.map((agent) => (
-                <AgentRow key={agent.id} agent={agent} onTest={setCallAgent} />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+          </div>
+        ) : (
+          /* auto-fill with a minimum width rather than fixed column counts:
+             the card keeps a readable width at every viewport, including the
+             narrower space left when the sidebar is expanded. */
+          <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,20rem),1fr))]">
+            {agents.map((agent) => (
+              <AgentCard key={agent.id} agent={agent} onTest={setCallAgent} />
+            ))}
+          </div>
+        )}
+      </div>
 
       {callAgent && (
         <CallOverlay agent={callAgent} onClose={() => setCallAgent(null)} />

@@ -8,11 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Textarea } from "@/components/ui/textarea";
 import { connectCalcom, disconnectCalcom, selectCalcomEvent } from "@/lib/api";
 import type { Agent, CalcomStatus } from "@/lib/types";
-
-const fieldClass =
-  "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 const API_KEYS_URL = "https://app.cal.com/settings/developer/api-keys";
 
@@ -35,7 +34,7 @@ function Step({
       <span
         className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-semibold ${
           done
-            ? "bg-[rgba(107,142,35,0.16)] text-[#4b6115]"
+            ? "bg-[var(--success-soft)] text-[var(--success-ink)]"
             : "bg-[var(--surface-sunk)] text-[var(--ink-muted)]"
         }`}
       >
@@ -97,7 +96,7 @@ function ConnectForm({ onConnected }: { onConnected: (status: CalcomStatus) => v
         </a>
         . We check it against Cal.com before saving, then store it encrypted.
       </p>
-      {error && <p className="text-sm text-red-700">{error}</p>}
+      {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
     </form>
   );
 }
@@ -117,12 +116,12 @@ function PromptBox({ prompt, agentName }: { prompt: string; agentName: string | 
 
   return (
     <div className="space-y-2">
-      <textarea
+      <Textarea
         readOnly
         value={prompt}
         rows={12}
         onFocus={(e) => e.currentTarget.select()}
-        className={`${fieldClass} resize-y font-mono text-xs leading-relaxed`}
+        className="bg-[var(--surface-sunk)] font-mono text-xs"
         aria-label="Scheduling instructions to paste into your agent's base prompt"
       />
       <div className="flex flex-wrap items-center gap-2">
@@ -192,10 +191,10 @@ export function CalcomPanel({
   const linked = status.connected && status.event_type_id !== null && status.agent_id !== null;
 
   return (
-    <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-4 space-y-0">
+    <Card className="max-w-4xl [--card-spacing:1.5rem]">
+      <CardHeader className="flex flex-col items-start justify-between gap-4 space-y-0 sm:flex-row">
         <div className="flex items-start gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[rgba(244,201,93,0.22)] text-[var(--amber-ink)]">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[var(--accent-soft)] text-[var(--amber-ink)]">
             <CalendarClock className="h-5 w-5" />
           </span>
           <div>
@@ -213,7 +212,7 @@ export function CalcomPanel({
             variant="outline"
             onClick={onDisconnect}
             disabled={busy}
-            className="shrink-0 gap-1.5 text-red-700 hover:bg-red-600/10 hover:text-red-700"
+            className="shrink-0 gap-1.5 text-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
           >
             <Unplug className="h-3.5 w-3.5" />
             Disconnect
@@ -252,12 +251,11 @@ export function CalcomPanel({
               <div className="grid gap-3 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <Label htmlFor="calcom-agent">Booking agent</Label>
-                  <select
+                  <NativeSelect
                     id="calcom-agent"
                     value={agentId}
                     onChange={(e) => link(eventId, e.target.value)}
                     disabled={busy}
-                    className={`${fieldClass} h-10`}
                   >
                     <option value="">— Pick an agent —</option>
                     {linkableAgents.map((a) => (
@@ -265,16 +263,15 @@ export function CalcomPanel({
                         {a.name}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
                 <div className="space-y-1.5">
                   <Label htmlFor="calcom-event">Event type</Label>
-                  <select
+                  <NativeSelect
                     id="calcom-event"
                     value={eventId}
                     onChange={(e) => link(e.target.value, agentId)}
                     disabled={busy}
-                    className={`${fieldClass} h-10`}
                   >
                     <option value="">— Pick an event type —</option>
                     {status.event_types.map((e) => (
@@ -283,7 +280,7 @@ export function CalcomPanel({
                         {e.length_minutes ? ` · ${e.length_minutes} min` : ""}
                       </option>
                     ))}
-                  </select>
+                  </NativeSelect>
                 </div>
               </div>
               <p className="text-xs text-[var(--ink-muted)]">
@@ -313,7 +310,7 @@ export function CalcomPanel({
           )}
         </Step>
 
-        {error && <p className="text-sm text-red-700">{error}</p>}
+        {error && <p className="text-sm text-[var(--danger)]">{error}</p>}
       </CardContent>
     </Card>
   );

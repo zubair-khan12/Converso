@@ -65,7 +65,7 @@ export function VapiSetupForm({ initialStatus }: { initialStatus: VapiStatus }) 
   const errorBox = error && (
     <p
       role="alert"
-      className="rounded-lg border border-red-600/20 bg-red-600/8 px-3 py-2.5 text-sm text-red-700"
+      className="rounded-lg border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-sm text-[var(--danger)]"
     >
       {error}
     </p>
@@ -76,7 +76,7 @@ export function VapiSetupForm({ initialStatus }: { initialStatus: VapiStatus }) 
       <Card className="w-full [--card-spacing:1.75rem]">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <CheckCircle2 className="h-5 w-5 text-[var(--olive)]" />
+            <CheckCircle2 className="h-5 w-5 text-[var(--success)]" />
             Vapi connected
           </CardTitle>
         </CardHeader>
@@ -94,7 +94,7 @@ export function VapiSetupForm({ initialStatus }: { initialStatus: VapiStatus }) 
                 Web testing key
               </p>
               {status.has_public_key && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-[rgba(107,142,35,0.14)] px-2 py-0.5 text-xs font-semibold text-[#4b6115]">
+                <span className="inline-flex items-center gap-1 rounded-full bg-[var(--success-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--success-ink)]">
                   <CheckCircle2 className="h-3 w-3" />
                   Added
                 </span>
@@ -113,7 +113,7 @@ export function VapiSetupForm({ initialStatus }: { initialStatus: VapiStatus }) 
                 placeholder={status.has_public_key ? "Replace public key…" : "Public key…"}
                 value={publicKey}
                 onChange={(e) => setPublicKey(e.target.value)}
-                className="h-9"
+
               />
               <Button
                 type="submit"
@@ -132,9 +132,9 @@ export function VapiSetupForm({ initialStatus }: { initialStatus: VapiStatus }) 
           <div className="flex flex-wrap items-center gap-3">
             <Button
               size="lg"
+              variant="brand"
               render={<Link href="/dashboard/agents" />}
               nativeButton={false}
-              className="gap-1.5 bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] px-4 text-[var(--ink)] hover:opacity-95"
             >
               Create agent
               <ArrowRight className="h-4 w-4" />
@@ -173,7 +173,7 @@ export function VapiSetupForm({ initialStatus }: { initialStatus: VapiStatus }) 
               onChange={(e) => setApiKey(e.target.value)}
               required
               autoFocus
-              className="h-9"
+
             />
           </div>
 
@@ -191,7 +191,7 @@ export function VapiSetupForm({ initialStatus }: { initialStatus: VapiStatus }) 
               placeholder="Public key — optional, add now or later"
               value={publicKey}
               onChange={(e) => setPublicKey(e.target.value)}
-              className="h-9"
+
             />
           </div>
 
@@ -201,7 +201,7 @@ export function VapiSetupForm({ initialStatus }: { initialStatus: VapiStatus }) 
             type="submit"
             size="lg"
             disabled={loading}
-            className="w-full gap-1.5 bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] text-[var(--ink)] hover:opacity-95"
+            className=" w-full"
           >
             {loading ? "Connecting…" : "Connect Vapi"}
           </Button>

@@ -22,8 +22,8 @@ export default async function EditAgentPage({
   if (!agent) notFound();
 
   return (
-    <div className="flex justify-center">
-      <div className="w-full max-w-2xl space-y-6 py-6">
+    <div>
+      <div className="w-full max-w-2xl space-y-6">
         <div>
           <Link
             href="/dashboard/agents"
@@ -32,10 +32,10 @@ export default async function EditAgentPage({
             <ArrowLeft className="h-4 w-4" />
             Back to agents
           </Link>
-          <h1 className="font-[family-name:var(--font-display)] text-2xl font-bold tracking-tight sm:text-3xl">
+          <h1 className="page-title">
             Edit {agent.name}
           </h1>
-          <p className="mt-1 text-[var(--ink-muted)]">
+          <p className="page-sub">
             Changes are synced to the Vapi assistant when you save.
           </p>
         </div>

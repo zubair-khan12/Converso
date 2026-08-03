@@ -9,11 +9,10 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { NativeSelect } from "@/components/ui/native-select";
+import { Textarea } from "@/components/ui/textarea";
 import { createAgent, updateAgent } from "@/lib/api";
 import type { Agent, Voice } from "@/lib/types";
-
-const fieldClass =
-  "w-full rounded-lg border border-input bg-transparent px-3 py-2 text-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50";
 
 // Seeded into a new agent's base prompt so it's already oriented toward
 // answering from a knowledge base (the tenant can edit or replace it).
@@ -96,7 +95,6 @@ export function AgentForm({
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder="e.g. Front Desk"
-              className="h-9"
               required
               autoFocus
             />
@@ -104,13 +102,12 @@ export function AgentForm({
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="first-message">First message</Label>
-            <textarea
+            <Textarea
               id="first-message"
               value={firstMessage}
               onChange={(e) => setFirstMessage(e.target.value)}
               placeholder="e.g. Hi, thanks for calling Acme! How can I help you today?"
               rows={2}
-              className={`${fieldClass} resize-y leading-relaxed`}
             />
             <p className="text-xs text-[var(--ink-muted)]">
               The agent says this the moment the call connects. Leave blank to
@@ -120,18 +117,17 @@ export function AgentForm({
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="voice">Voice</Label>
-            <select
+            <NativeSelect
               id="voice"
               value={voiceId}
               onChange={(e) => setVoiceId(e.target.value)}
-              className={`${fieldClass} h-9`}
             >
               {voices.map((v) => (
                 <option key={v.voiceId} value={v.voiceId}>
                   {v.name} — {v.gender}, {v.accent}
                 </option>
               ))}
-            </select>
+            </NativeSelect>
           </div>
 
           <div className="flex flex-col gap-2">
@@ -158,13 +154,12 @@ export function AgentForm({
 
           <div className="flex flex-col gap-2">
             <Label htmlFor="prompt">Base prompt</Label>
-            <textarea
+            <Textarea
               id="prompt"
               value={basePrompt}
               onChange={(e) => setBasePrompt(e.target.value)}
               placeholder="Describe who the agent is, how it should greet callers, and what it should help with…"
               rows={8}
-              className={`${fieldClass} resize-y leading-relaxed`}
               required
             />
             <p className="text-xs text-[var(--ink-muted)]">
@@ -175,7 +170,7 @@ export function AgentForm({
           {error && (
             <p
               role="alert"
-              className="rounded-lg border border-red-600/20 bg-red-600/8 px-3 py-2.5 text-sm text-red-700"
+              className="rounded-lg border border-[var(--danger-line)] bg-[var(--danger-soft)] px-3 py-2.5 text-sm text-[var(--danger)]"
             >
               {error}
             </p>
@@ -185,8 +180,8 @@ export function AgentForm({
             <Button
               type="submit"
               size="lg"
+              variant="brand"
               disabled={saving !== null}
-              className="gap-1.5 bg-gradient-to-br from-[var(--yellow)] to-[var(--amber)] px-5 text-[var(--ink)] hover:opacity-95"
             >
               {saving === "agents"
                 ? isEdit
@@ -202,7 +197,6 @@ export function AgentForm({
               variant="outline"
               disabled={saving !== null}
               onClick={() => void save("knowledge")}
-              className="gap-1.5"
             >
               <BookOpen className="h-4 w-4" />
               {saving === "knowledge" ? "Saving…" : "Add knowledge base"}
@@ -212,7 +206,6 @@ export function AgentForm({
               variant="outline"
               render={<Link href="/dashboard/agents" />}
               nativeButton={false}
-              className="gap-1.5"
             >
               <ArrowLeft className="h-4 w-4" />
               Cancel

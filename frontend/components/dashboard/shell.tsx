@@ -32,12 +32,14 @@ export function DashboardShell({
       <div
         className={cn(
           "flex min-h-screen flex-col transition-[padding] duration-200 ease-out",
-          collapsed ? "lg:pl-[76px]" : "lg:pl-64",
+          collapsed ? "lg:pl-[76px]" : "lg:pl-[264px]",
         )}
       >
         <Topbar user={user} onOpenMobile={() => setMobileOpen(true)} />
-        <main className="mx-auto w-full max-w-[1400px] flex-1 px-4 py-6 lg:px-8">
-          {children}
+        <main className="w-full flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+          {/* One measure for every screen: content stops at 1240px so a wide
+              monitor doesn't stretch a two-column form across a metre. */}
+          <div className="mx-auto w-full max-w-[1240px]">{children}</div>
         </main>
       </div>
     </div>
