@@ -12,7 +12,9 @@ export const metadata = {
 export default async function GettingStartedPage() {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
-  if (user.onboarded) redirect("/dashboard");
+  // A disabled account has nothing to be onboarded into; /dashboard is where
+  // the lock is explained.
+  if (user.onboarded || !user.account_enabled) redirect("/dashboard");
 
   const firstName =
     user.name?.trim().split(/\s+/)[0] || user.email.split("@")[0];

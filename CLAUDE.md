@@ -1,7 +1,7 @@
 # Converso — Voice AI SaaS
 
-Multi-tenant platform: a business signs up (provisioned by admin, no public
-signup), builds a voice agent, gives it a knowledge base and tools, attaches
+Multi-tenant platform: a business signs up (self-serve, or provisioned by an
+admin), builds a voice agent, gives it a knowledge base and tools, attaches
 a phone number, and Vapi handles the actual calls. This file is a living
 summary for whoever (human or Claude) picks up the project next — **update it
 whenever architecture, stack, or scope changes**, don't let it drift stale.
@@ -46,8 +46,9 @@ Two separate identities, deliberately not merged:
   against the DB per request, so deactivating revokes access immediately.
   Production requires `ENVIRONMENT=production` + a non-default `SECRET_KEY`
   (which signs that cookie) — the app refuses to start otherwise.
-- **Tenant users** (`users`) sign in to the product. No public signup — an admin
-  provisions them via `/admin`. Login:
+- **Tenant users** (`users`) sign in to the product. They arrive either by
+  **self-signup** (`POST /api/auth/signup`, see below) or by being provisioned
+  in `/admin`. Login:
 
 1. Browser → Next.js Route Handler (`/api/auth/login`, same origin)
 2. Route Handler → FastAPI `/api/auth/login` server-to-server
@@ -59,7 +60,61 @@ Two separate identities, deliberately not merged:
 
 `users.onboarded` (boolean) drives a one-time post-login tour: first login →
 `/getting-started`, everyone else → `/dashboard` directly. Set via
-`POST /api/auth/onboarded`, idempotent, never flips back.
+`POST /api/auth/onboarded`, idempotent, never flips back. **Only self-signups
+ever see it** — the tour explains setting a workspace up from nothing, which
+isn't the situation of someone handed a configured account, so both the admin
+panel and `manage.py create-user` create users with `onboarded=True`.
+
+## Signup + account status
+
+Self-signup (`POST /api/auth/signup`, `SIGNUP_ENABLED` to close it again
+without a deploy) takes **organization, name, email, password** and creates a
+**new `Tenant` plus its `owner`** in one transaction. It never joins an
+existing tenant: organisation names aren't unique or verified, so matching on
+one would let anybody request their way into someone else's workspace. Growing
+a tenant to a second user is what invites are for — not built yet. `tenants.slug`
+is derived from the org name and uniquified (`acme`, `acme-2`); `users.email`
+is **globally** unique, so one person cannot be in two tenants.
+
+The tenant is the **billing/access boundary** — money is collected outside the
+system, so `tenants.status` (`active` | `disabled`) is what staff flip when a
+customer doesn't pay. Kept separate from `users.is_active`, which means "does
+this person still work here?" — offboarding an employee and suspending a
+customer must not be the same lever. `trial_ends_at` is unused by default;
+when set, the gate treats the account as expired past it, so turning signups
+into time-limited trials needs no new enforcement code. `tenants.source`
+(`signup` | `admin`) is what makes self-signups identifiable in `/admin`.
+
+Three things worth not regressing:
+
+- **The gate lives inside `deps.get_current_claims`**, the dependency every
+  product router already goes through — not at each call site, because a gate
+  you have to remember to add is one that will eventually be missing from
+  exactly one endpoint. It 403s with `{"code": "account_disabled"}`.
+  `get_token_claims` is the identity-only variant used by `/me`.
+- **A locked user can still sign in.** `/me` deliberately keeps working and
+  carries `account_enabled` + `account_locked_reason`, so the dashboard layout
+  renders `AccountLocked` explaining the situation. Failing the login instead
+  would tell a paying-late customer "invalid email or password", and they'd
+  conclude the product is broken rather than getting in touch.
+- **Disabling also detaches their Vapi phone numbers**
+  (`tenants.service.suspend_live_resources`, run from `TenantAdmin`). Gating
+  the API isn't enough on its own: inbound calls are routed by *Vapi*, and a
+  trained agent's every turn runs through our custom-LLM endpoint on the
+  **platform** OpenAI key — a locked-out customer whose phone still answers is
+  a bill we pay. Re-enabling re-attaches (`restore_live_resources`). The
+  custom-LLM endpoint re-checks the tenant itself, since Vapi calls it with no
+  JWT.
+
+Because signup is open and **email is not verified**, two guardrails carry the
+abuse risk: `MAX_DOCUMENTS_PER_TENANT` (embeddings are on the platform key)
+and `SIGNUP_ENABLED`. Email verification is the obvious next hardening step.
+
+New signups are emailed to `ADMIN_NOTIFY_EMAIL` via `app/core/notifications.py`
+(SMTP today, one function to swap for Resend/Slack) as a **background task that
+swallows every failure** — the `Tenant`/`User` rows are the record of a signup,
+the email is only the nudge, so a mail outage must never 500 a customer's
+signup. Unconfigured, it prints to the server console.
 
 Tenant scoping: every tenant-owned table carries a non-nullable `tenant_id`
 (`TenantScopedMixin` in `backend/app/base_model.py`). Tenant context always
@@ -93,9 +148,11 @@ reconnect their integrations when it happens.
   `models.py`; routers live alongside when a domain is wired up.
 - `app/models.py` imports every domain's models so `configure_mappers()` /
   Alembic autogenerate see the full picture.
-- One Alembic migration currently: `aa97fec2a867_initial_schema...` — squash
-  small schema tweaks into it while nothing is deployed elsewhere; once
-  anything ships beyond this local dev DB, switch back to additive migrations.
+- Migrations are now **additive** — the backend is deployed, so the initial
+  schema has already been applied somewhere that editing it wouldn't reach.
+  (`aa97fec2a867` initial → `60846f81001d` admin users → `b1c4e7f20a15`
+  tenant account status.) The old "squash into the initial migration" rule no
+  longer applies.
 - Run migrations from `backend/`: `alembic revision --autogenerate -m "..."`,
   `alembic upgrade head`, sanity-check with `alembic check`.
 - Two venvs exist (root `.venv`, `backend/.venv`) — pick whichever has FastAPI
@@ -296,7 +353,9 @@ carrier) — not attempted; the provider layer is pluggable if one is found.
 
 ## Current scope / state
 
-Done: landing page, login (httpOnly cookie), first-login onboarding tour,
+Done: landing page, login (httpOnly cookie), self-signup + tenant account
+status (disable/re-enable from `/admin`, locked-account screen), first-login
+onboarding tour,
 dashboard shell, dashboard home (honest empty states), Configure Vapi (key
 encrypted at rest), Voice agents CRUD synced to Vapi + web test calls,
 Knowledge Base (text/PDF upload, LangGraph RAG via custom-LLM, console+DB
@@ -304,8 +363,10 @@ retrieval trace), Phone Numbers (Vapi-native + Twilio/Telnyx bring-your-own,
 inbound only), Integrations → Cal.com scheduling (LangGraph tool #2). Chat
 agents tab locked ("Launching soon").
 
-Deferred / not yet built: real `GET /api/dashboard/summary` (dashboard shows
-placeholders), rescheduling/cancelling a booked meeting, outbound calling,
+Deferred / not yet built: email verification at signup, invite links (a second
+user in an existing tenant), password reset, real `GET /api/dashboard/summary`
+(dashboard shows placeholders), rescheduling/cancelling a booked meeting,
+outbound calling,
 Call Logs/Settings screens, document object storage (only
 extracted text is kept, not raw files), end-call *function* under custom-LLM
 (endCallPhrases still work), true token-streaming from the graph (currently

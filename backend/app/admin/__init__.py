@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from sqladmin import Admin, ModelView
 from sqlalchemy import inspect as sa_inspect
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import configure_mappers
+from sqlalchemy.orm import Session, configure_mappers
 from werkzeug.security import generate_password_hash
 from wtforms import PasswordField
 
@@ -22,7 +22,8 @@ from ..integrations.models import Integration
 from ..knowledge.models import Document, DocumentChunk
 from ..config import DEV_SECRET_KEY, settings
 from ..telephony.models import PhoneNumber
-from ..tenants.models import Tenant
+from ..tenants import service as tenant_service
+from ..tenants.models import TENANT_STATUSES, Tenant
 from .auth import SESSION_MAX_AGE, AdminAuth
 from .models import AdminUser
 
@@ -53,12 +54,69 @@ def _form_excludes(model, *extra: str) -> list[str]:
 
 
 class TenantAdmin(ModelView, model=Tenant):
+    """Tenants, and the switch that decides whether they may use the product.
+
+    Set `status` to "disabled" to lock an account that hasn't paid. That does
+    two things: every product endpoint starts refusing (see
+    `app.deps.get_current_claims`), and the tenant's phone numbers are detached
+    from their assistants on Vapi — otherwise the account is locked out of the
+    dashboard while its phone line keeps answering calls on our OpenAI key.
+    Setting it back to "active" re-attaches them.
+    """
+
     category = "Tenancy"
     name = "Tenant"
-    column_list = [Tenant.slug, Tenant.name, Tenant.created_at]
+    column_list = [
+        Tenant.name,
+        Tenant.slug,
+        Tenant.status,
+        Tenant.source,
+        Tenant.created_at,
+    ]
     column_searchable_list = [Tenant.name, Tenant.slug]
-    column_sortable_list = [Tenant.slug, Tenant.created_at]
+    column_sortable_list = [Tenant.slug, Tenant.status, Tenant.created_at]
+    # Newest first: self-signups are the rows you came here to look at.
+    column_default_sort = ("created_at", True)
     form_excluded_columns = _form_excludes(Tenant)
+
+    async def on_model_change(self, data, model, is_created, request):
+        status = (data.get("status") or "").strip().lower()
+        if status and status not in TENANT_STATUSES:
+            raise ValueError(f"status must be one of: {', '.join(TENANT_STATUSES)}")
+        if status:
+            data["status"] = status
+
+        # sqladmin calls this *before* applying the form to the model, so
+        # `model.status` is still the previous value and `status` is the new
+        # one — which is what makes detecting the transition possible without
+        # stashing state on `self` (ModelViews are shared across requests, so
+        # that would race between two admins saving at once).
+        if is_created or not status or status == model.status:
+            return
+
+        db = Session.object_session(model)
+        if db is None:
+            return
+
+        if status == "disabled":
+            problems, action = tenant_service.suspend_live_resources(db, model), "detached"
+        elif model.status == "disabled":
+            problems, action = tenant_service.restore_live_resources(db, model), "re-attached"
+        else:
+            return
+
+        # Deliberately before sqladmin's commit, so the number changes land in
+        # the same transaction as the status. If Vapi is unreachable the save
+        # still goes through — a tenant locked locally but whose numbers we
+        # couldn't detach is a problem to log, not a reason to leave the
+        # account enabled.
+        if problems:
+            print(
+                f"[admin] tenant {model.slug} → {status}: phone numbers could "
+                f"not all be {action}: " + "; ".join(problems)
+            )
+        else:
+            print(f"[admin] tenant {model.slug} → {status}: numbers {action}")
 
 
 class AdminUserAdmin(ModelView, model=AdminUser):
@@ -105,7 +163,14 @@ class UserAdmin(ModelView, model=User):
 
     category = "Tenancy"
     name = "User"
-    column_list = [User.email, User.name, User.role, User.is_active, User.tenant]
+    column_list = [
+        User.email,
+        User.name,
+        User.role,
+        User.is_active,
+        User.onboarded,
+        User.tenant,
+    ]
     column_searchable_list = [User.email, User.name]
     column_sortable_list = [User.email, User.created_at]
     # Never expose the hash in forms; a write-only plaintext field replaces it.
@@ -122,10 +187,20 @@ class UserAdmin(ModelView, model=User):
     async def on_model_change(self, data, model, is_created, request):
         # Pop the virtual field so it is never treated as a model column.
         pw = data.pop("new_password", None)
+        email = (data.get("email") or "").strip().lower()
+        if email:
+            data["email"] = email  # login lowercases, so storage must match
         if pw:
             model.password_hash = generate_password_hash(pw)
         if is_created and not getattr(model, "password_hash", None):
             raise ValueError("A password is required when creating a user.")
+        if is_created:
+            # The getting-started tour walks through setting a workspace up
+            # from nothing — a self-signup's situation, not that of someone
+            # handed a configured account by staff. So provisioned users start
+            # already-onboarded; only signups see it. (Editing an existing user
+            # can still clear the flag to replay the tour for them.)
+            data["onboarded"] = True
 
 
 class AgentAdmin(ModelView, model=Agent):

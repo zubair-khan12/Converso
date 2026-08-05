@@ -6,8 +6,16 @@ export type SessionUser = {
   tenant_id: string;
   role: string;
   name?: string | null;
-  /** False until the user has been through the getting-started tour once. */
+  /** False until the user has been through the getting-started tour once.
+   *  Only self-signups start false — provisioned users skip the tour. */
   onboarded: boolean;
+  /** The organization (tenant) this user belongs to. */
+  organization?: string | null;
+  /** Whether the organization may use the product. False once staff disable
+   *  the account — the user can still sign in, but sees the locked screen. */
+  account_enabled: boolean;
+  /** Customer-facing explanation of the lock, or null when enabled. */
+  account_locked_reason?: string | null;
 };
 
 export type VapiStatus = {

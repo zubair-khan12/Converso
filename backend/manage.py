@@ -32,6 +32,9 @@ def create_user(args) -> int:
             password_hash=generate_password_hash(args.password),
             name=args.name,
             role=args.role,
+            # Provisioned, not self-signed-up — skip the getting-started tour,
+            # matching what the admin panel does. See UserAdmin.on_model_change.
+            onboarded=True,
         )
         db.add(user)
         db.commit()

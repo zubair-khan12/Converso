@@ -25,6 +25,22 @@ export async function backendLogin(email: string, password: string): Promise<Res
   });
 }
 
+/** Create an organization + its owner. Returns the raw fetch Response, in the
+ *  same `{token, expires_in, user}` shape as login. */
+export async function backendSignup(input: {
+  name: string;
+  organization: string;
+  email: string;
+  password: string;
+}): Promise<Response> {
+  return fetch(`${backendUrl()}/api/auth/signup`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+    cache: "no-store",
+  });
+}
+
 /** Store the JWT as an httpOnly session cookie on the Next.js origin. */
 export async function setSessionCookie(token: string, maxAgeSeconds: number): Promise<void> {
   const store = await cookies();

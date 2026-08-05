@@ -46,9 +46,14 @@ export default function Home() {
           <LogoMark className={styles.brandMark} />
           converso
         </Link>
-        <Link href="/login" className={styles.navSignIn}>
-          Sign in
-        </Link>
+        <nav className={styles.navActions}>
+          <Link href="/login" className={styles.navSignIn}>
+            Sign in
+          </Link>
+          <Link href="/signup" className={styles.navSignUp}>
+            Get started
+          </Link>
+        </nav>
       </header>
 
       <section className={styles.hero}>
@@ -62,7 +67,7 @@ export default function Home() {
         </p>
 
         <div className={styles.ctaRow}>
-          <Link href="/login" className={styles.ctaPrimary}>
+          <Link href="/signup" className={styles.ctaPrimary}>
             Get started
             <span className={styles.arrow} aria-hidden>
               →
@@ -96,7 +101,7 @@ export default function Home() {
           {services.map((s) => (
             <Link
               key={s.id}
-              href="/login"
+              href="/signup"
               className={styles.card}
               data-accent={s.accent}
             >
