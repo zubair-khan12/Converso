@@ -36,6 +36,34 @@ export async function login(email: string, password: string): Promise<LoginResul
   return { ok: true, user: data.user };
 }
 
+export type SignupInput = {
+  name: string;
+  organization: string;
+  email: string;
+  password: string;
+};
+
+/** Create an organization and sign in as its owner. Same result shape as
+ *  `login`, so the caller's success path is identical. */
+export async function signup(input: SignupInput): Promise<LoginResult> {
+  let res: Response;
+  try {
+    res = await fetch("/api/auth/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    });
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "Something went wrong. Try again." };
+  }
+  return { ok: true, user: data.user };
+}
+
 export type VapiConnectResult =
   | { ok: true; status: VapiStatus }
   | { ok: false; error: string };

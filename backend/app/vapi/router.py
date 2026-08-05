@@ -25,10 +25,19 @@ from ..conversations.models import Conversation, ToolExecution
 from ..database import get_db
 from ..deps import get_current_claims
 from ..integrations.service import get_calcom_config
+from ..tenants.models import Tenant
 from .client import VOICE_PROVIDER, VOICES
 from .rag_agent import FALLBACK_ANSWER, run_brain
 
 router = APIRouter(prefix="/api/vapi", tags=["vapi"])
+
+# Spoken to a caller when the tenant's account is disabled. Says something
+# true and ends the interaction politely — the alternative on a live phone
+# line is silence, which reads as a broken number.
+DISABLED_ACCOUNT_ANSWER = (
+    "I'm sorry, this line isn't taking calls at the moment. "
+    "Please try again later. Goodbye."
+)
 
 
 @router.get("/voices")
@@ -140,6 +149,16 @@ def _run_turn(db: Session, agent_id: str, body: dict) -> str:
     agent = db.query(Agent).filter(Agent.id == agent_id).first()
     if agent is None:
         raise HTTPException(status_code=404, detail="Unknown agent.")
+
+    # A disabled tenant must not run turns on the *platform* OpenAI key. The
+    # JWT gate can't cover this endpoint — Vapi calls it, not a browser — so
+    # the check is repeated here against the agent's own tenant. Disabling
+    # detaches their numbers too, so this should only ever fire in the window
+    # between the two, or if a number was re-attached out of band.
+    tenant = db.get(Tenant, agent.tenant_id)
+    if tenant is not None and not tenant.is_enabled:
+        print(f"[brain] refusing turn: tenant {tenant.slug} is {tenant.status}")
+        return DISABLED_ACCOUNT_ANSWER
 
     history, query = _messages_from_openai(body.get("messages", []))
     call_id = (body.get("call") or {}).get("id")

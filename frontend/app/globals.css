@@ -30,6 +30,9 @@
   --accent-soft: rgba(224, 160, 32, 0.16);
   --accent-softer: rgba(224, 160, 32, 0.08);
   --accent-line: rgba(185, 119, 14, 0.32);
+  /* Gold light bloomed over the navy panels (auth split-screen, hero). */
+  --accent-glow: rgba(224, 160, 32, 0.35);
+  --accent-glow-faint: rgba(224, 160, 32, 0.16);
 
   /* Neutrals — biased a few degrees toward the navy so they read as chosen
      rather than as stock grey. */

@@ -27,5 +27,11 @@ export function backendUrl(): string {
 
 export const SESSION_COOKIE = "converso_session";
 
+// Where a customer is pointed when they need a human — currently only the
+// disabled-account screen. Safe to inline into the bundle (it's on the
+// marketing site anyway), hence NEXT_PUBLIC_.
+export const SUPPORT_EMAIL =
+  process.env.NEXT_PUBLIC_SUPPORT_EMAIL || "support@converso.ai";
+
 // `Secure` cookies require HTTPS, so only enable it in production (dev is http).
 export const COOKIE_SECURE = process.env.NODE_ENV === "production";

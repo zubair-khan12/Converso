@@ -10,18 +10,22 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
-import { login } from "@/lib/api";
+import { signup } from "@/lib/api";
 
-/** What the product actually does, said plainly — the panel is the only place
- *  a signing-in user sees anything but a form, so it should be worth reading. */
 const HIGHLIGHTS = [
-  "Agents that answer the phone in your business's voice",
-  "Grounded in your own documents, not guesswork",
-  "Books the meeting on your calendar before the call ends",
+  "Build your first voice agent in a few minutes",
+  "Give it your own documents to answer from",
+  "Connect a phone number when you're ready to go live",
 ];
 
-export default function LoginPage() {
+/** Minimum enforced by the backend too — this copy just means nobody finds
+ *  out about it by being rejected. */
+const MIN_PASSWORD = 8;
+
+export default function SignupPage() {
   const router = useRouter();
+  const [name, setName] = useState("");
+  const [organization, setOrganization] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -30,40 +34,72 @@ export default function LoginPage() {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    setLoading(true);
 
-    const result = await login(email, password);
+    if (password.length < MIN_PASSWORD) {
+      setError(`Please choose a password of at least ${MIN_PASSWORD} characters.`);
+      return;
+    }
+
+    setLoading(true);
+    const result = await signup({ name, organization, email, password });
     if (!result.ok) {
       setError(result.error);
       setLoading(false);
       return;
     }
-    // Cookie is set. First-timers get the guided tour; everyone else goes
-    // straight to work. A locked account skips the tour entirely — there's
-    // nothing to be onboarded into, and /dashboard is where the lock is
-    // explained (routing it via /getting-started would only bounce).
-    const destination =
-      !result.user.account_enabled || result.user.onboarded
-        ? "/dashboard"
-        : "/getting-started";
-    router.push(destination);
+    // The cookie is already set. A signup is by definition a first login, so
+    // they always go through the tour rather than landing on an empty dashboard.
+    router.push("/getting-started");
   }
 
   return (
     <AuthLayout
       headline={
         <>
-          Your phone line,
+          Start answering
           <br />
-          answered by AI.
+          every call.
         </>
       }
       highlights={HIGHLIGHTS}
     >
-      <AuthCard title="Welcome back" subtitle="Sign in to your workspace.">
+      <AuthCard
+        title="Create your account"
+        subtitle="Set up your workspace and try it out."
+      >
         <form className="mt-7 flex flex-col gap-5" onSubmit={onSubmit} noValidate>
           <div className="flex flex-col gap-2">
-            <Label htmlFor="email">Email</Label>
+            <Label htmlFor="organization">Organization</Label>
+            <Input
+              id="organization"
+              inputSize="lg"
+              autoComplete="organization"
+              placeholder="Acme Ltd"
+              value={organization}
+              onChange={(e) => setOrganization(e.target.value)}
+              required
+              autoFocus
+            />
+            <p className="text-sm text-[var(--ink-muted)]">
+              Your workspace name. Your agents, numbers and documents live here.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="name">Your name</Label>
+            <Input
+              id="name"
+              inputSize="lg"
+              autoComplete="name"
+              placeholder="Jane Cooper"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+          </div>
+
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="email">Work email</Label>
             <Input
               id="email"
               type="email"
@@ -74,7 +110,6 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              autoFocus
             />
           </div>
 
@@ -83,8 +118,8 @@ export default function LoginPage() {
             <PasswordInput
               id="password"
               inputSize="lg"
-              autoComplete="current-password"
-              placeholder="Your password"
+              autoComplete="new-password"
+              placeholder={`At least ${MIN_PASSWORD} characters`}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -108,17 +143,17 @@ export default function LoginPage() {
             className="mt-1 w-full"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-            {loading ? "Signing in…" : "Sign in"}
+            {loading ? "Creating your workspace…" : "Create account"}
           </Button>
         </form>
 
         <p className="mt-6 text-center text-sm text-[var(--ink-muted)]">
-          New to Converso?{" "}
+          Already have an account?{" "}
           <Link
-            href="/signup"
+            href="/login"
             className="font-medium text-[var(--amber-ink)] underline-offset-4 hover:underline"
           >
-            Create an account
+            Sign in
           </Link>
         </p>
       </AuthCard>

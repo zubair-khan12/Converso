@@ -53,6 +53,25 @@ A shared platform key would put every tenant's calls on one account.
 makes existing encrypted credentials unreadable — tenants must reconnect their
 integrations afterwards.
 
+### Self-signup
+
+Optional, all with working defaults (see `.env.example`):
+
+| Variable | Default | What it does |
+|---|---|---|
+| `SIGNUP_ENABLED` | `true` | Close public signup without a deploy |
+| `MAX_DOCUMENTS_PER_TENANT` | `25` | Bounds what one account can spend of the platform `OPENAI_API_KEY` on embeddings |
+| `ADMIN_NOTIFY_EMAIL` + `SMTP_*` | empty | New-signup alerts; unset prints them to the server console instead |
+
+Signup creates a **new tenant plus its owner** — it never joins an existing
+one. `tenants.status` (`active`/`disabled`) is the switch for whether an
+account may use the product; flip it from `/admin` → Tenancy → Tenants, which
+also detaches that tenant's phone numbers from Vapi so a locked account can't
+keep taking calls on the platform OpenAI key.
+
+Email is **not** verified at signup, so `MAX_DOCUMENTS_PER_TENANT` and
+`SIGNUP_ENABLED` are what currently carry the abuse risk.
+
 ## Migrations (standalone Alembic)
 ```bash
 alembic upgrade head                 # apply latest schema

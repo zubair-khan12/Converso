@@ -57,6 +57,28 @@ class Settings(BaseSettings):
     # Embedding vector dimension for document_chunks.embedding. MUST match the
     # embedding model's output size (text-embedding-3-small = 1536). Changing it
     # requires re-ALTERing the vector column and re-training agents.
+    # --- Self-signup ---
+
+    # Master switch for public signup. Off leaves the product admin-provisioned
+    # only, exactly as it was before signup existed — so it can be closed again
+    # without a deploy if signups are being abused.
+    SIGNUP_ENABLED: bool = True
+
+    # Ceiling on knowledge sources per tenant. Signup is open and unverified,
+    # so anyone with a throwaway address can spend the *platform* OpenAI key on
+    # embeddings; this is what bounds that bill. Raise it per-customer by
+    # nothing more than editing the env var — it's a guardrail, not a plan tier.
+    MAX_DOCUMENTS_PER_TENANT: int = 25
+
+    # Where new-signup alerts go. Unset → they're printed to the server console
+    # instead (see app/core/notifications.py).
+    ADMIN_NOTIFY_EMAIL: str = ""
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+
     EMBEDDING_DIM: int = 1536
     EMBEDDING_MODEL: str = "text-embedding-3-small"  # 1536 dims
     RAG_LLM_MODEL: str = "gpt-4.1-nano"

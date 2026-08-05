@@ -7,8 +7,10 @@ the step the user explicitly triggers with "Train agent".
 """
 import time
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..config import settings
 from .chunking import chunk_text
 from .embeddings import embed_query, embed_texts
 from .extraction import ExtractionError, extract_text
@@ -38,10 +40,34 @@ def list_documents(db: Session, tenant_id: str, agent_id: str) -> list[Document]
     )
 
 
+def _enforce_document_quota(db: Session, tenant_id: str) -> None:
+    """Cap knowledge sources per tenant.
+
+    Signup is open and unverified, and every source is eventually embedded on
+    the *platform* OpenAI key — so without a ceiling, one throwaway account can
+    run up an unbounded bill. Counted across the whole tenant rather than
+    per-agent, since the cost is the tenant's total either way.
+    """
+    limit = settings.MAX_DOCUMENTS_PER_TENANT
+    if limit <= 0:  # 0 or negative disables the cap
+        return
+    used = (
+        db.query(func.count(Document.id))
+        .filter(Document.tenant_id == tenant_id)
+        .scalar()
+    )
+    if used >= limit:
+        raise ValueError(
+            f"You've reached the limit of {limit} knowledge sources for this "
+            f"account. Delete one to add another, or contact us to raise it."
+        )
+
+
 def add_text_source(
     db: Session, tenant_id: str, agent_id: str, *, title: str, text: str
 ) -> Document:
     """Store pasted text as a pending knowledge source."""
+    _enforce_document_quota(db, tenant_id)
     text = text.strip()
     if not text:
         raise ValueError("Text can't be empty.")
@@ -76,6 +102,7 @@ def add_file_source(
     Extraction happens up front so a bad file is rejected immediately (nothing
     saved) rather than surfacing only at train time.
     """
+    _enforce_document_quota(db, tenant_id)
     try:
         text = extract_text(filename=filename, mime_type=mime_type, data=data)
     except ExtractionError as exc:

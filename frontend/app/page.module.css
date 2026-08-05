@@ -30,6 +30,29 @@
   height: 30px;
 }
 
+.navActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* The gold pill: signing up is the page's job, signing in is for people who
+   already have an account — so only one of the two is filled. */
+.navSignUp {
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 9px 18px;
+  border-radius: 999px;
+  color: #fff;
+  background: linear-gradient(135deg, var(--gold), var(--amber));
+  box-shadow: var(--shadow-sm);
+  transition: filter 0.18s ease, transform 0.18s ease;
+}
+.navSignUp:hover {
+  filter: brightness(1.07);
+  transform: translateY(-1px);
+}
+
 .navSignIn {
   font-weight: 500;
   font-size: 0.95rem;
