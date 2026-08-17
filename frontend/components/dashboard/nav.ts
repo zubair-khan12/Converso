@@ -64,7 +64,12 @@ export const NAV: NavSection[] = [
         icon: Phone,
         requiresVapi: true,
       },
-      { label: "Call Logs", href: "/dashboard/call-logs", icon: ScrollText, soon: true },
+      {
+        label: "Call Logs",
+        href: "/dashboard/call-logs",
+        icon: ScrollText,
+        requiresVapi: true,
+      },
     ],
   },
   {

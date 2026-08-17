@@ -131,3 +131,74 @@ export type Agent = {
   created_at: string | null;
   updated_at: string | null;
 };
+
+/** One row in the call log. `duration_seconds` and `ended_reason` only exist
+ *  once Vapi's end-of-call report has arrived. */
+export type CallLogEntry = {
+  id: string;
+  agent_name: string | null;
+  caller_number: string | null;
+  direction: "inbound" | "outbound" | "web";
+  status: "active" | "completed" | "failed";
+  ended_reason: string | null;
+  duration_seconds: number | null;
+  started_at: string | null;
+};
+
+/** Rollups behind the dashboard home. Counts are always real numbers — the
+ *  whole object is null when the backend is unreachable. */
+export type DashboardSummary = {
+  agents: { total: number; ready: number };
+  phone_numbers: { total: number; attached: number };
+  documents: { total: number; ready: number };
+  calls: {
+    total: number;
+    this_month: number;
+    last_7_days: number;
+    in_progress: number;
+    failed: number;
+  };
+  minutes: { total: number; this_month: number };
+  unique_callers: number;
+  avg_duration_seconds: number;
+  total_cost_usd: number;
+  recent_calls: CallLogEntry[];
+};
+
+/** A call as the Call Logs list shows it. Extends the dashboard's compact
+ *  entry with what playback and detail-fetching need. */
+export type CallLog = CallLogEntry & {
+  agent_id: string | null;
+  cost_usd: number | null;
+  recording_url: string | null;
+  ended_at: string | null;
+};
+
+export type CallLogPage = {
+  calls: CallLog[];
+  total: number;
+  has_more: boolean;
+};
+
+/** One turn of a call, as reconstructed from Vapi's end-of-call report. */
+export type CallMessage = {
+  role: string;
+  content: string | null;
+  seq: number;
+};
+
+/** A tool the agent ran mid-call — a knowledge lookup or a Cal.com booking. */
+export type CallToolExecution = {
+  tool_name: string;
+  status: string;
+  latency_ms: number | null;
+  input: unknown;
+  output: unknown;
+};
+
+export type CallLogDetail = CallLog & {
+  summary: string | null;
+  transcript: string | null;
+  messages: CallMessage[];
+  tool_executions: CallToolExecution[];
+};

@@ -6,13 +6,16 @@ import {
   Bot,
   Clock,
   PhoneCall,
+  PhoneIncoming,
   Users,
   type LucideIcon,
 } from "lucide-react";
 
+import { EmptyState } from "@/components/dashboard/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import type { SessionUser } from "@/lib/types";
+import { StatusPill, type PillTone } from "@/components/ui/status-pill";
+import type { CallLogEntry, DashboardSummary, SessionUser } from "@/lib/types";
 
 function greeting() {
   const h = new Date().getHours();
@@ -21,12 +24,41 @@ function greeting() {
   return "Good evening";
 }
 
-/**
- * These read "—" or "0" until call logging lands. They're shown rather than
- * hidden because the shape of the dashboard shouldn't change under someone
- * the first time a call comes in — but the note under each number says
- * plainly that there's nothing behind it yet.
- */
+/** "—" when the summary is missing entirely, so an unreachable backend never
+ *  reads as a genuine zero. */
+function stat(value: number | undefined): string {
+  return value === undefined ? "—" : value.toLocaleString();
+}
+
+function duration(seconds: number | null): string {
+  if (seconds === null || seconds <= 0) return "—";
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return m ? `${m}m ${s}s` : `${s}s`;
+}
+
+function when(iso: string | null): string {
+  if (!iso) return "Not started";
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+const CALL_TONE: Record<CallLogEntry["status"], PillTone> = {
+  completed: "success",
+  active: "pending",
+  failed: "danger",
+};
+
+const CALL_LABEL: Record<CallLogEntry["status"], string> = {
+  completed: "Completed",
+  active: "In progress",
+  failed: "Failed",
+};
+
 function StatCard({
   icon: Icon,
   label,
@@ -98,9 +130,43 @@ function ShortcutCard({
   );
 }
 
-export function DashboardContent({ user }: { user: SessionUser }) {
+function CallRow({ call }: { call: CallLogEntry }) {
+  const who =
+    call.caller_number ??
+    (call.direction === "web" ? "Web test call" : "Unknown caller");
+
+  return (
+    <li className="flex items-center justify-between gap-4 border-t border-[var(--border)] px-5 py-3 first:border-t-0">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-[var(--ink)]">{who}</p>
+        <p className="truncate text-xs text-[var(--ink-muted)]">
+          {call.agent_name ?? "Deleted agent"} · {when(call.started_at)}
+        </p>
+      </div>
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="text-sm tabular-nums text-[var(--ink-muted)]">
+          {duration(call.duration_seconds)}
+        </span>
+        <StatusPill tone={CALL_TONE[call.status]}>
+          {CALL_LABEL[call.status]}
+        </StatusPill>
+      </div>
+    </li>
+  );
+}
+
+export function DashboardContent({
+  user,
+  summary,
+}: {
+  user: SessionUser;
+  summary: DashboardSummary | null;
+}) {
   const firstName =
     user.name?.split(/\s+/)[0] ?? user.email.split("@")[0] ?? "there";
+
+  const calls = summary?.calls;
+  const recent = summary?.recent_calls ?? [];
 
   return (
     <div className="space-y-8">
@@ -127,11 +193,88 @@ export function DashboardContent({ user }: { user: SessionUser }) {
 
       {/* Stat cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard icon={Bot} label="Total agents" value="—" note="Live once connected" />
-        <StatCard icon={PhoneCall} label="Total calls" value="0" note="No calls yet" />
-        <StatCard icon={Clock} label="Total minutes" value="0" note="No calls yet" />
-        <StatCard icon={Users} label="Unique callers" value="0" note="No calls yet" />
+        <StatCard
+          icon={Bot}
+          label="Total agents"
+          value={stat(summary?.agents.total)}
+          note={
+            !summary
+              ? "Couldn't load right now"
+              : summary.agents.total === 0
+                ? "None created yet"
+                : `${summary.agents.ready} live on Vapi`
+          }
+        />
+        <StatCard
+          icon={PhoneCall}
+          label="Total calls"
+          value={stat(calls?.total)}
+          note={
+            !calls
+              ? "Couldn't load right now"
+              : calls.in_progress > 0
+                ? `${calls.in_progress} in progress`
+                : calls.total === 0
+                  ? "No calls yet"
+                  : `${calls.this_month} this month`
+          }
+        />
+        <StatCard
+          icon={Clock}
+          label="Total minutes"
+          value={summary ? summary.minutes.total.toLocaleString() : "—"}
+          note={
+            !summary
+              ? "Couldn't load right now"
+              : summary.minutes.total > 0
+                ? `${summary.minutes.this_month} this month`
+                : "No call time logged"
+          }
+        />
+        <StatCard
+          icon={Users}
+          label="Unique callers"
+          value={stat(summary?.unique_callers)}
+          note={
+            !summary
+              ? "Couldn't load right now"
+              : summary.avg_duration_seconds > 0
+                ? `${duration(summary.avg_duration_seconds)} average call`
+                : "No callers yet"
+          }
+        />
       </div>
+
+      {/* Recent calls */}
+      <section className="space-y-4">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-lg font-bold tracking-[-0.02em]">Recent calls</h2>
+          {calls && calls.failed > 0 && (
+            <StatusPill tone="danger">{calls.failed} failed</StatusPill>
+          )}
+        </div>
+        <Card className="[--card-spacing:0px]">
+          <CardContent className="p-0">
+            {recent.length > 0 ? (
+              <ul>
+                {recent.map((call) => (
+                  <CallRow key={call.id} call={call} />
+                ))}
+              </ul>
+            ) : (
+              <EmptyState
+                icon={PhoneIncoming}
+                title={summary ? "No calls yet" : "Couldn't load your calls"}
+                body={
+                  summary
+                    ? "Attach a phone number to an agent, or start a web test call — every call is logged here with its duration and transcript."
+                    : "We couldn't reach the server. Refresh to try again."
+                }
+              />
+            )}
+          </CardContent>
+        </Card>
+      </section>
 
       <section className="space-y-4">
         <h2 className="text-lg font-bold tracking-[-0.02em]">Pick up where you left off</h2>

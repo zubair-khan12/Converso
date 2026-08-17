@@ -44,6 +44,8 @@ def payload_for(db: Session, agent: Agent) -> dict:
         temperature=cfg.get("temperature", 0.7),
         first_message=cfg.get("first_message", ""),
         custom_llm_url=custom_llm_url,
+        # Every agent — brain-enabled or not — reports its calls back to us here.
+        webhook_url=f"{settings.public_base_url}/api/vapi/webhook/{agent.id}",
     )
 
 

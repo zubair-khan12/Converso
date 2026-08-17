@@ -7,6 +7,8 @@ import { backendUrl, COOKIE_SECURE, SESSION_COOKIE } from "./env";
 import type {
   Agent,
   CalcomStatus,
+  CallLogPage,
+  DashboardSummary,
   KnowledgeDocument,
   PhoneNumber,
   ProviderStatus,
@@ -232,6 +234,37 @@ export const getCalcomStatus = cache(async (): Promise<CalcomStatus> => {
   }).catch(() => null);
 
   if (!res || !res.ok) return DISCONNECTED_CALCOM;
+  return res.json();
+});
+
+/** Rollup counts for the dashboard home. `null` means we couldn't reach the
+ *  backend — which the UI must show differently from a real zero. */
+export const getDashboardSummary = cache(async (): Promise<DashboardSummary | null> => {
+  const token = await getSessionToken();
+  if (!token) return null;
+
+  const res = await fetch(`${backendUrl()}/api/dashboard/summary`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return null;
+  return res.json();
+});
+
+/** The tenant's call logs, newest first. Empty on any error — the Call Logs
+ *  screen distinguishes "no calls" from "couldn't load" via `total`. */
+export const getCallLogs = cache(async (limit = 50): Promise<CallLogPage> => {
+  const token = await getSessionToken();
+  const empty: CallLogPage = { calls: [], total: 0, has_more: false };
+  if (!token) return empty;
+
+  const res = await fetch(`${backendUrl()}/api/conversations?limit=${limit}`, {
+    headers: { Authorization: `Bearer ${token}` },
+    cache: "no-store",
+  }).catch(() => null);
+
+  if (!res || !res.ok) return empty;
   return res.json();
 });
 

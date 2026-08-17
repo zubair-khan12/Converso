@@ -44,6 +44,11 @@ class VapiError(Exception):
 # Things the assistant can say to gracefully hang up on its own.
 END_CALL_PHRASES = ["goodbye", "have a great day", "talk to you later", "bye now"]
 
+# Server messages we subscribe to. `end-of-call-report` carries the transcript,
+# duration and cost (the call log proper); `status-update` opens the row as soon
+# as the call connects, so an in-progress call is visible too.
+SERVER_MESSAGES = ["end-of-call-report", "status-update"]
+
 
 def build_assistant_payload(
     *,
@@ -53,6 +58,7 @@ def build_assistant_payload(
     temperature: float,
     first_message: str = "",
     custom_llm_url: str | None = None,
+    webhook_url: str | None = None,
 ) -> dict:
     """Shape an Agent's config into Vapi's assistant request body.
 
@@ -60,6 +66,8 @@ def build_assistant_payload(
     the model is a `custom-llm` pointed at that URL, so Vapi routes every turn
     to our LangGraph RAG brain instead of running its own LLM. Otherwise it's a
     plain built-in OpenAI model.
+
+    `webhook_url` is where Vapi posts server messages — the call log's source.
     """
     if custom_llm_url:
         model = {
@@ -90,7 +98,16 @@ def build_assistant_payload(
         # speak first. Always sent (even empty) so clearing it stays in sync —
         # Vapi's PATCH is a partial merge and would otherwise keep a stale one.
         "firstMessage": first_message,
+        # Stated explicitly rather than relying on Vapi's default: the Call
+        # Logs screen plays `recordingUrl` back, so recording being on is a
+        # product requirement, not an account setting we'd rather not inherit.
+        "artifactPlan": {"recordingEnabled": True},
     }
+    if webhook_url:
+        payload["server"] = {"url": webhook_url}
+        # Only the two we actually persist — Vapi's default set is chatty
+        # (per-word transcripts, speech updates) and we'd just discard them.
+        payload["serverMessages"] = SERVER_MESSAGES
     return payload
 
 

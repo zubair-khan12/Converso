@@ -11,6 +11,8 @@ from .admin import init_admin
 from .agents.router import router as agents_router
 from .auth.router import router as auth_router
 from .config import settings, validate_settings
+from .conversations.router import router as conversations_router
+from .dashboard.router import router as dashboard_router
 from .database import engine
 from .integrations.router import router as integrations_router
 from .knowledge.router import router as knowledge_router
@@ -38,6 +40,8 @@ app.include_router(vapi_router)
 app.include_router(agents_router)
 app.include_router(knowledge_router)
 app.include_router(telephony_router)
+app.include_router(dashboard_router)
+app.include_router(conversations_router)
 
 # Internal admin panel at /admin.
 init_admin(app, engine)
