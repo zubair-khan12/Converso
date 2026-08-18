@@ -12,25 +12,41 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { createAgent, updateAgent } from "@/lib/api";
-import type { Agent, Voice } from "@/lib/types";
+import type { Agent, AgentKind, Voice } from "@/lib/types";
 
 // Seeded into a new agent's base prompt so it's already oriented toward
-// answering from a knowledge base (the tenant can edit or replace it).
-const DEFAULT_BASE_PROMPT =
-  "You are a friendly, concise voice assistant for this business. Answer the " +
-  "caller's questions using the business's knowledge base. If something isn't " +
-  "covered there, say so honestly instead of guessing, and offer to help " +
-  "another way. Keep replies short and natural for a phone conversation.";
+// answering from a knowledge base (the tenant can edit or replace it). The two
+// differ in more than a word: a phone reply has to be short and speakable,
+// while a chat reply can use a list and is read, not heard.
+const DEFAULT_BASE_PROMPT: Record<AgentKind, string> = {
+  voice:
+    "You are a friendly, concise voice assistant for this business. Answer the " +
+    "caller's questions using the business's knowledge base. If something isn't " +
+    "covered there, say so honestly instead of guessing, and offer to help " +
+    "another way. Keep replies short and natural for a phone conversation.",
+  chat:
+    "You are a friendly, helpful chat assistant for this business. Answer the " +
+    "visitor's questions using the business's knowledge base. If something isn't " +
+    "covered there, say so honestly instead of guessing, and offer to help " +
+    "another way. Keep replies short and easy to skim; use a short list when " +
+    "you are giving several options.",
+};
 
 export function AgentForm({
   voices,
   agent,
+  kind = "voice",
 }: {
   voices: Voice[];
   agent?: Agent;
+  /** Which kind to create. Ignored when editing — an existing agent's own
+   *  kind wins, since transport can't be switched after creation. */
+  kind?: AgentKind;
 }) {
   const router = useRouter();
   const isEdit = Boolean(agent);
+  const agentKind = agent?.kind ?? kind;
+  const isChat = agentKind === "chat";
 
   const [name, setName] = useState(agent?.name ?? "");
   const [voiceId, setVoiceId] = useState(
@@ -39,7 +55,7 @@ export function AgentForm({
   const [temperature, setTemperature] = useState(agent?.temperature ?? 0.7);
   const [firstMessage, setFirstMessage] = useState(agent?.first_message ?? "");
   const [basePrompt, setBasePrompt] = useState(
-    agent?.base_prompt ?? DEFAULT_BASE_PROMPT,
+    agent?.base_prompt ?? DEFAULT_BASE_PROMPT[agentKind],
   );
   const [error, setError] = useState<string | null>(null);
   // Which button is in flight, so each shows its own busy label.
@@ -55,6 +71,7 @@ export function AgentForm({
 
     const input = {
       name,
+      kind: agentKind,
       base_prompt: basePrompt,
       voice_id: voiceId,
       temperature,
@@ -106,15 +123,21 @@ export function AgentForm({
               id="first-message"
               value={firstMessage}
               onChange={(e) => setFirstMessage(e.target.value)}
-              placeholder="e.g. Hi, thanks for calling Acme! How can I help you today?"
+              placeholder={
+                isChat
+                  ? "e.g. Hi! Ask me anything about Acme."
+                  : "e.g. Hi, thanks for calling Acme! How can I help you today?"
+              }
               rows={2}
             />
             <p className="text-xs text-[var(--ink-muted)]">
-              The agent says this the moment the call connects. Leave blank to
-              have it wait for the caller to speak first.
+              {isChat
+                ? "Shown as the agent's opening line. Leave blank to let the visitor speak first."
+                : "The agent says this the moment the call connects. Leave blank to have it wait for the caller to speak first."}
             </p>
           </div>
 
+          {!isChat && (
           <div className="flex flex-col gap-2">
             <Label htmlFor="voice">Voice</Label>
             <NativeSelect
@@ -129,6 +152,7 @@ export function AgentForm({
               ))}
             </NativeSelect>
           </div>
+          )}
 
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -163,7 +187,8 @@ export function AgentForm({
               required
             />
             <p className="text-xs text-[var(--ink-muted)]">
-              This becomes the agent&apos;s system prompt on every call.
+              This becomes the agent&apos;s system prompt on every
+              {isChat ? " conversation." : " call."}
             </p>
           </div>
 

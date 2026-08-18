@@ -49,9 +49,18 @@ def payload_for(db: Session, agent: Agent) -> dict:
     )
 
 
-def push_to_vapi(db: Session, agent: Agent, api_key: str) -> None:
+def push_to_vapi(db: Session, agent: Agent, api_key: str | None) -> None:
     """Create or update the Vapi assistant to match the local row, recording the
     sync result on the agent. Never raises — status carries the outcome."""
+    if agent.kind == "chat":
+        # A chat agent has no Vapi side: its turns are served by our own chat
+        # endpoint, not routed by Vapi. The guard lives here rather than at each
+        # call site so no future caller can accidentally provision one — there
+        # is nothing to provision, hence permanently "ready".
+        agent.provisioning_status = "ready"
+        agent.provisioning_error = None
+        return
+
     payload = payload_for(db, agent)
     try:
         if agent.vapi_assistant_id:

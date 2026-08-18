@@ -1,18 +1,14 @@
-import { redirect } from "next/navigation";
-
 import { CalcomPanel } from "@/components/dashboard/calcom-panel";
-import { getAgents, getCalcomStatus, getVapiStatus } from "@/lib/session";
+import { getAgents, getCalcomStatus } from "@/lib/session";
 
 export const metadata = {
   title: "Integrations · Converso",
 };
 
-// Same gate as Agents/Knowledge Base: an integration only does anything through
-// a live agent, and there are no agents without a connected Vapi account.
+// Not Vapi-gated: Cal.com books meetings for chat agents too, and those exist
+// without a Vapi account — gating this screen would make scheduling
+// unreachable for a chat-only tenant.
 export default async function IntegrationsPage() {
-  const status = await getVapiStatus();
-  if (!status.connected) redirect("/dashboard/vapi-setup");
-
   const [calcom, agents] = await Promise.all([getCalcomStatus(), getAgents()]);
 
   return (

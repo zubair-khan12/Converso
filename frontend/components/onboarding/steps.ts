@@ -15,12 +15,13 @@ export type OnboardingStep = {
 };
 
 /** The five things a workspace does, in the order they happen. One sentence
- *  each — this is a tour, not documentation. */
+ *  each — this is a tour, not documentation. Deliberately channel-neutral: a
+ *  new signup may be here for the website chat and never touch a phone. */
 export const STEPS: OnboardingStep[] = [
   {
     id: "agent",
     title: "Create an agent",
-    body: "Name it, pick a voice, and write how it should greet callers.",
+    body: "Pick voice or chat, then write how it should greet people.",
     icon: Bot,
   },
   {
@@ -31,8 +32,8 @@ export const STEPS: OnboardingStep[] = [
   },
   {
     id: "number",
-    title: "Connect a number",
-    body: "Point a phone number at the agent and it starts answering.",
+    title: "Put it live",
+    body: "Point a phone number at it, or paste the widget on your website.",
     icon: PhoneCall,
   },
   {
@@ -43,8 +44,8 @@ export const STEPS: OnboardingStep[] = [
   },
   {
     id: "insights",
-    title: "Review every call",
-    body: "Transcripts and summaries land here after each conversation.",
+    title: "Review every conversation",
+    body: "Recordings, transcripts and summaries land here automatically.",
     icon: LineChart,
   },
 ];

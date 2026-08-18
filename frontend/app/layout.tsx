@@ -22,9 +22,9 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: "Converso — AI voice agents for every business",
+  title: "Converso — AI voice and chat agents for every business",
   description:
-    "Build, ground, and deploy AI voice agents that answer the phone, know your business, and book the meeting.",
+    "Build, ground, and deploy AI agents that answer your phone and the chat on your website, know your business, and book the meeting.",
 };
 
 export default function RootLayout({

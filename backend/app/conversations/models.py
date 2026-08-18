@@ -16,6 +16,13 @@ CONVERSATION_STATUSES = ("active", "completed", "failed")
 # means the Call Logs screen doesn't need a migration when it is.
 CONVERSATION_DIRECTIONS = ("inbound", "outbound", "web")
 
+# Voice and chat conversations share this table: they carry the same messages
+# and the same tool trace, and differ only in the columns one of them leaves
+# null (a chat has no recording, no caller number, no Vapi call id). Splitting
+# them would mean duplicating the message, trace and stats plumbing to gain
+# nothing but tidier nulls.
+CONVERSATION_CHANNELS = ("voice", "chat")
+
 
 class Conversation(TenantScopedMixin, TimestampMixin, Base):
     __tablename__ = "conversations"
@@ -37,6 +44,7 @@ class Conversation(TenantScopedMixin, TimestampMixin, Base):
     caller_number = Column(String(20), nullable=True)
     status = Column(String(32), nullable=False, default="active")
     direction = Column(String(16), nullable=False, default="inbound")
+    channel = Column(String(16), nullable=False, default="voice", index=True)
     # Indexed: every stat on the dashboard is a window over this column.
     started_at = Column(DateTime(timezone=True), nullable=True, index=True)
     ended_at = Column(DateTime(timezone=True), nullable=True)

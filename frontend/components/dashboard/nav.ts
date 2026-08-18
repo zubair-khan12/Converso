@@ -39,19 +39,11 @@ export const NAV: NavSection[] = [
   {
     title: "Build",
     items: [
-      { label: "Agents", href: "/dashboard/agents", icon: Bot, requiresVapi: true },
-      {
-        label: "Knowledge Base",
-        href: "/dashboard/knowledge",
-        icon: BookOpen,
-        requiresVapi: true,
-      },
-      {
-        label: "Integrations",
-        href: "/dashboard/integrations",
-        icon: Blocks,
-        requiresVapi: true,
-      },
+      // Neither is Vapi-gated: a chat agent needs no Vapi account at all, and
+      // it uses the same knowledge base a voice agent does.
+      { label: "Agents", href: "/dashboard/agents", icon: Bot },
+      { label: "Knowledge Base", href: "/dashboard/knowledge", icon: BookOpen },
+      { label: "Integrations", href: "/dashboard/integrations", icon: Blocks },
     ],
   },
   {
@@ -64,12 +56,8 @@ export const NAV: NavSection[] = [
         icon: Phone,
         requiresVapi: true,
       },
-      {
-        label: "Call Logs",
-        href: "/dashboard/call-logs",
-        icon: ScrollText,
-        requiresVapi: true,
-      },
+      // Not Vapi-gated: the screen covers chat conversations too.
+      { label: "Conversations", href: "/dashboard/call-logs", icon: ScrollText },
     ],
   },
   {

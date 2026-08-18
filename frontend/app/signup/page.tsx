@@ -13,9 +13,9 @@ import { PasswordInput } from "@/components/ui/password-input";
 import { signup } from "@/lib/api";
 
 const HIGHLIGHTS = [
-  "Build your first voice agent in a few minutes",
+  "Build a voice or chat agent in a few minutes",
   "Give it your own documents to answer from",
-  "Connect a phone number when you're ready to go live",
+  "Add a phone number, or paste the chat widget on your site",
 ];
 
 /** Minimum enforced by the backend too — this copy just means nobody finds

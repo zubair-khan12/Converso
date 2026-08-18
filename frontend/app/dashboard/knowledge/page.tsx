@@ -6,7 +6,7 @@ import { KnowledgeManager } from "@/components/dashboard/knowledge-manager";
 import { EmptyState } from "@/components/dashboard/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { getAgent, getAgents, getDocuments, getVapiStatus } from "@/lib/session";
+import { getAgent, getAgents, getDocuments } from "@/lib/session";
 
 export const metadata = {
   title: "Knowledge Base · Converso",
@@ -17,11 +17,10 @@ type Props = {
 };
 
 // Knowledge base is per-agent. With `?agent=<id>` it manages that agent's
-// sources; without it, you pick which agent to work on. Gated behind a Vapi
-// connection server-side, same as the Agents tab.
+// sources; without it, you pick which agent to work on. Not Vapi-gated — chat
+// agents have a knowledge base too and never touch Vapi — so a tenant with no
+// agents at all just meets the empty state below.
 export default async function KnowledgePage({ searchParams }: Props) {
-  const status = await getVapiStatus();
-  if (!status.connected) redirect("/dashboard/vapi-setup");
 
   const { agent: agentId } = await searchParams;
 
@@ -54,7 +53,7 @@ export default async function KnowledgePage({ searchParams }: Props) {
             <EmptyState
               icon={Bot}
               title="No agents yet"
-              body="Create a voice agent first, then come back to give it a knowledge base."
+              body="Create an agent first — voice or chat — then come back to give it a knowledge base."
               action={
                 <Button
                   variant="outline"

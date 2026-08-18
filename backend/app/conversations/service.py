@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 
 from ..agents.models import Agent
-from .models import Conversation, Message
+from .models import Conversation, Message, ToolExecution
 
 # Vapi ended-reason strings that mean the call broke rather than finished.
 _FAILURE_MARKERS = ("error", "failed", "no-answer", "busy", "rejected")
@@ -63,6 +63,63 @@ def get_or_create(
         db.add(conv)
         db.flush()
     return conv
+
+
+def record_brain_turn(
+    db: Session,
+    *,
+    agent: Agent,
+    conversation: Conversation,
+    query: str,
+    result: dict,
+) -> None:
+    """Save what the LangGraph brain did on one turn — the retrieval, plus any
+    scheduling tools it chose to call.
+
+    Shared by both channels on purpose: a chat turn and a phone turn run the
+    same graph, so they should be inspectable in the same way and through the
+    same rows. Caller commits.
+    """
+    chunks = result.get("chunks", [])
+    if chunks or result.get("retrieval_ms"):
+        db.add(
+            ToolExecution(
+                tenant_id=agent.tenant_id,
+                conversation_id=conversation.id,
+                tool_name="knowledge_base_search",
+                input={"query": query},
+                output={
+                    "answer": result.get("answer", ""),
+                    "retrieval_ms": result.get("retrieval_ms"),
+                    "chunks": [
+                        {
+                            "filename": c["filename"],
+                            "chunk_index": c["chunk_index"],
+                            "score": c["score"],
+                            "preview": c["content"][:200],
+                        }
+                        for c in chunks
+                    ],
+                },
+                latency_ms=result.get("retrieval_ms"),
+                status="success",
+            )
+        )
+
+    # One row per scheduling tool the model actually chose to call, so a booking
+    # can be traced back to the exact slots offered and the arguments used.
+    for call in result.get("tool_calls", []):
+        db.add(
+            ToolExecution(
+                tenant_id=agent.tenant_id,
+                conversation_id=conversation.id,
+                tool_name=call["tool_name"],
+                input=call["input"],
+                output={"result": call["output"]},
+                latency_ms=call.get("latency_ms"),
+                status=call.get("status", "success"),
+            )
+        )
 
 
 def _caller_number(call: dict) -> str | None:
