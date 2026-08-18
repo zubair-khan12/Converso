@@ -154,8 +154,11 @@ export function CalcomPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // An agent has to exist on Vapi before it can be given tools.
-  const linkableAgents = agents.filter((a) => a.provisioning_status === "ready");
+  // A voice agent has to exist on Vapi before it can be given tools; a chat
+  // agent has no Vapi side and is linkable as soon as it's saved.
+  const linkableAgents = agents.filter(
+    (a) => a.kind === "chat" || a.provisioning_status === "ready",
+  );
 
   function applyStatus(next: CalcomStatus) {
     setStatus(next);
@@ -202,7 +205,7 @@ export function CalcomPanel({
             <p className="mt-1 text-sm text-[var(--ink-muted)]">
               {linked
                 ? `${status.agent_name} can book "${status.event_title}" meetings on the phone.`
-                : "Let one agent check your calendar and book meetings during a call."}
+                : "Let one agent check your calendar and book meetings mid-conversation."}
             </p>
           </div>
         </div>
@@ -260,7 +263,7 @@ export function CalcomPanel({
                     <option value="">— Pick an agent —</option>
                     {linkableAgents.map((a) => (
                       <option key={a.id} value={a.id}>
-                        {a.name}
+                        {a.name} — {a.kind === "chat" ? "chat" : "voice"}
                       </option>
                     ))}
                   </NativeSelect>
@@ -285,7 +288,7 @@ export function CalcomPanel({
               </div>
               <p className="text-xs text-[var(--ink-muted)]">
                 Only this agent can book — your other agents are unaffected. The invite goes to
-                whatever email the caller gives it on the call.
+                whatever email the customer gives it.
               </p>
             </div>
           )}

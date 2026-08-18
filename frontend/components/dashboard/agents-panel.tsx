@@ -7,7 +7,6 @@ import {
   BookOpen,
   Bot,
   Gauge,
-  Lock,
   MessagesSquare,
   Mic,
   Pencil,
@@ -24,7 +23,7 @@ import { EmptyState } from "@/components/dashboard/empty-state";
 import { Button } from "@/components/ui/button";
 import { StatusPill, type PillTone } from "@/components/ui/status-pill";
 import { deleteAgent, retryAgent } from "@/lib/api";
-import type { Agent, ProvisioningStatus } from "@/lib/types";
+import type { Agent, AgentKind, ProvisioningStatus } from "@/lib/types";
 
 const STATUS: Record<ProvisioningStatus, { tone: PillTone; label: string }> = {
   ready: { tone: "success", label: "Live on Vapi" },
@@ -58,11 +57,19 @@ function AgentCard({ agent, onTest }: { agent: Agent; onTest: (a: Agent) => void
   const router = useRouter();
   const [busy, setBusy] = useState<"delete" | "retry" | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isChat = agent.kind === "chat";
   const testable = agent.provisioning_status === "ready";
-  const status = STATUS[agent.provisioning_status];
+  // A chat agent has no Vapi side, so "Live on Vapi" would be a lie; it is
+  // simply ready the moment it is saved.
+  const status = isChat
+    ? { tone: "success" as PillTone, label: "Ready to chat" }
+    : STATUS[agent.provisioning_status];
 
   async function onDelete() {
-    if (!confirm(`Delete "${agent.name}"? This removes it from Vapi too.`)) return;
+    const warning = isChat
+      ? `Delete "${agent.name}"? Its knowledge base and chat history go too.`
+      : `Delete "${agent.name}"? This removes it from Vapi too.`;
+    if (!confirm(warning)) return;
     setError(null);
     setBusy("delete");
     const result = await deleteAgent(agent.id);
@@ -90,7 +97,11 @@ function AgentCard({ agent, onTest }: { agent: Agent; onTest: (a: Agent) => void
     <article className="flex flex-col rounded-[calc(var(--radius)*1.4)] border border-[var(--border)] bg-[var(--surface)] shadow-[var(--shadow-sm)] transition-shadow hover:shadow-[var(--shadow-md)]">
       <div className="flex items-start gap-3 p-5 pb-4">
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-[var(--radius)] bg-[var(--accent-soft)] text-[var(--amber-ink)]">
-          <Bot className="h-5.5 w-5.5" />
+          {isChat ? (
+            <MessagesSquare className="h-5.5 w-5.5" />
+          ) : (
+            <Bot className="h-5.5 w-5.5" />
+          )}
         </span>
         <div className="min-w-0 flex-1">
           <h3
@@ -112,7 +123,11 @@ function AgentCard({ agent, onTest }: { agent: Agent; onTest: (a: Agent) => void
       </div>
 
       <div className="grid grid-cols-2 gap-4 border-y border-[var(--border)] bg-[var(--surface-sunk)]/60 px-5 py-3.5">
-        <Meta icon={Mic} label="Voice" value={agent.voice_id ?? "Default"} />
+        {isChat ? (
+          <Meta icon={MessagesSquare} label="Channel" value="Chat" />
+        ) : (
+          <Meta icon={Mic} label="Voice" value={agent.voice_id ?? "Default"} />
+        )}
         <Meta
           icon={Gauge}
           label="Temperature"
@@ -129,7 +144,20 @@ function AgentCard({ agent, onTest }: { agent: Agent; onTest: (a: Agent) => void
       {/* Test is the thing you came here to do, so it gets the width and the
           brand fill; everything else is an icon with an accessible name. */}
       <div className="flex items-center gap-2 p-5 pt-4">
-        {testable ? (
+        {isChat ? (
+          /* A page of its own rather than a dialog over the list: a chat is a
+             sustained back-and-forth, and a modal makes the conversation feel
+             disposable while hiding everything behind it. */
+          <Button
+            variant="brand"
+            render={<Link href={`/chat/${agent.id}`} />}
+            nativeButton={false}
+            className="flex-1"
+          >
+            <MessagesSquare className="h-4 w-4" />
+            Open chat
+          </Button>
+        ) : testable ? (
           <Button variant="brand" onClick={() => onTest(agent)} className="flex-1">
             <Phone className="h-4 w-4" />
             Test call
@@ -182,12 +210,33 @@ function AgentCard({ agent, onTest }: { agent: Agent; onTest: (a: Agent) => void
 }
 
 /**
- * Voice agents are live; chat agents are on the roadmap. The chat tab stays
- * visible so the direction is clear, but it can't be opened — hovering or
- * focusing it explains why.
+ * Voice and chat agents are the same underlying agent — same prompt, same
+ * knowledge base, same Cal.com booking — so they share one screen and one
+ * "New agent" flow, split by a tab rather than by a separate section.
  */
-export function AgentsPanel({ agents }: { agents: Agent[] }) {
+export function AgentsPanel({
+  agents,
+  vapiConnected,
+}: {
+  agents: Agent[];
+  vapiConnected: boolean;
+}) {
+  const [tab, setTab] = useState<AgentKind>("voice");
   const [callAgent, setCallAgent] = useState<Agent | null>(null);
+
+  const shown = agents.filter((a) => a.kind === tab);
+  // Voice agents live on Vapi; chat agents don't touch it. So the missing-key
+  // notice belongs to the voice tab alone, not the whole screen.
+  const needsVapi = tab === "voice" && !vapiConnected;
+  const counts = {
+    voice: agents.filter((a) => a.kind === "voice").length,
+    chat: agents.filter((a) => a.kind === "chat").length,
+  };
+
+  const TABS: { kind: AgentKind; label: string; icon: typeof Radio }[] = [
+    { kind: "voice", label: "Voice agents", icon: Radio },
+    { kind: "chat", label: "Chat agents", icon: MessagesSquare },
+  ];
 
   return (
     <section className="space-y-5">
@@ -197,73 +246,88 @@ export function AgentsPanel({ agents }: { agents: Agent[] }) {
           aria-label="Agent type"
           className="grid w-full grid-cols-2 gap-1 rounded-[calc(var(--radius)*1.2)] border border-[var(--border)] bg-[var(--surface-sunk)] p-1 sm:w-auto sm:min-w-[22rem]"
         >
-          <button
-            type="button"
-            role="tab"
-            aria-selected
-            className="flex items-center justify-center gap-2 rounded-[var(--radius)] bg-[var(--surface)] px-3.5 py-2 text-sm font-semibold text-[var(--ink)] shadow-[var(--shadow-sm)] transition-colors"
-          >
-            <Radio className="h-4 w-4 text-[var(--amber)]" />
-            Voice agents
-          </button>
-
-          {/* Locked tab. aria-disabled (not `disabled`) so it stays hoverable,
-              focusable, and can announce why it's unavailable. */}
-          <div className="group relative">
-            <button
-              type="button"
-              role="tab"
-              aria-selected={false}
-              aria-disabled
-              aria-describedby="chat-agents-soon"
-              className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-[var(--radius)] px-3.5 py-2 text-sm font-medium text-[var(--ink-muted)] opacity-70 transition-opacity group-hover:opacity-100"
-            >
-              <MessagesSquare className="h-4 w-4" />
-              Chat agents
-              <Lock className="h-3.5 w-3.5" />
-            </button>
-
-            <span
-              id="chat-agents-soon"
-              role="tooltip"
-              className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 flex -translate-x-1/2 translate-y-1 items-center gap-1.5 whitespace-nowrap rounded-lg bg-[var(--navy)] px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-[var(--shadow-md)] transition-all duration-150 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100"
-            >
-              <Lock className="h-3 w-3" />
-              Launching soon
-              <span
-                aria-hidden
-                className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rotate-45 rounded-[1px] bg-[var(--navy)]"
-              />
-            </span>
-          </div>
+          {TABS.map(({ kind, label, icon: Icon }) => {
+            const selected = tab === kind;
+            return (
+              <button
+                key={kind}
+                type="button"
+                role="tab"
+                aria-selected={selected}
+                onClick={() => setTab(kind)}
+                className={
+                  selected
+                    ? "flex items-center justify-center gap-2 rounded-[var(--radius)] bg-[var(--surface)] px-3.5 py-2 text-sm font-semibold text-[var(--ink)] shadow-[var(--shadow-sm)] transition-colors"
+                    : "flex items-center justify-center gap-2 rounded-[var(--radius)] px-3.5 py-2 text-sm font-medium text-[var(--ink-muted)] transition-colors hover:text-[var(--ink)]"
+                }
+              >
+                <Icon
+                  className={`h-4 w-4 ${selected ? "text-[var(--amber)]" : ""}`}
+                />
+                {label}
+                {counts[kind] > 0 && (
+                  <span className="tabular-nums text-xs text-[var(--ink-subtle)]">
+                    {counts[kind]}
+                  </span>
+                )}
+              </button>
+            );
+          })}
         </div>
 
         <Button
           variant="brand"
-          render={<Link href="/dashboard/agents/new" />}
+          render={
+            <Link
+              href={
+                needsVapi
+                  ? "/dashboard/vapi-setup"
+                  : `/dashboard/agents/new?kind=${tab}`
+              }
+            />
+          }
           nativeButton={false}
           className="w-full sm:w-auto"
         >
           <Plus className="h-4 w-4" />
-          New agent
+          {tab === "chat" ? "New chat agent" : "New voice agent"}
         </Button>
       </div>
 
-      <div role="tabpanel" aria-label="Voice agents">
-        {agents.length === 0 ? (
+      {needsVapi && (
+        <p className="rounded-[var(--radius)] border border-[var(--border)] bg-[var(--surface-sunk)] px-4 py-3 text-sm text-[var(--ink-muted)]">
+          Voice agents run on your own Vapi account.{" "}
+          <Link
+            href="/dashboard/vapi-setup"
+            className="font-semibold text-[var(--amber-ink)] underline underline-offset-2"
+          >
+            Connect Vapi
+          </Link>{" "}
+          to create one — chat agents work without it.
+        </p>
+      )}
+
+      <div role="tabpanel" aria-label={tab === "chat" ? "Chat agents" : "Voice agents"}>
+        {shown.length === 0 ? (
           <div className="rounded-[calc(var(--radius)*1.4)] border border-[var(--border)] bg-[var(--surface)]">
             <EmptyState
-              icon={Bot}
-              title="No agents to show yet"
-              body="Create a voice agent, give it a personality, and it'll be provisioned on Vapi automatically."
+              icon={tab === "chat" ? MessagesSquare : Bot}
+              title={
+                tab === "chat" ? "No chat agents yet" : "No voice agents yet"
+              }
+              body={
+                tab === "chat"
+                  ? "A chat agent answers in writing from the same knowledge base a voice agent uses, and can book meetings through Cal.com. No Vapi account needed."
+                  : "A voice agent answers a real phone number, using the same knowledge base and booking tools as a chat agent. It's provisioned on your Vapi account automatically."
+              }
               action={
                 <Button
                   variant="outline"
-                  render={<Link href="/dashboard/agents/new" />}
+                  render={<Link href={`/dashboard/agents/new?kind=${tab}`} />}
                   nativeButton={false}
                 >
                   <Plus className="h-4 w-4" />
-                  Create your first agent
+                  {tab === "chat" ? "Create a chat agent" : "Create your first agent"}
                 </Button>
               }
             />
@@ -273,7 +337,7 @@ export function AgentsPanel({ agents }: { agents: Agent[] }) {
              the card keeps a readable width at every viewport, including the
              narrower space left when the sidebar is expanded. */
           <div className="grid gap-4 [grid-template-columns:repeat(auto-fill,minmax(min(100%,20rem),1fr))]">
-            {agents.map((agent) => (
+            {shown.map((agent) => (
               <AgentCard key={agent.id} agent={agent} onTest={setCallAgent} />
             ))}
           </div>

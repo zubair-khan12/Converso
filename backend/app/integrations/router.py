@@ -384,6 +384,8 @@ def _calcom_status(
             event_title=cfg.get("event_title") or "meeting",
             length_minutes=cfg.get("length_minutes"),
             time_zone=cfg.get("time_zone") or "UTC",
+            # Voice and chat get differently-worded copy of the same steps.
+            kind=agent.kind,
         )
 
     return {
@@ -538,7 +540,11 @@ def select_calcom_event(
     )
     if agent is None:
         raise HTTPException(status_code=404, detail="Agent not found.")
-    if not agent.vapi_assistant_id:
+    # Voice agents book through their Vapi assistant, so an unprovisioned one
+    # would be linked in name only. A chat agent has no assistant by design —
+    # its tools are bound per turn by our own endpoint — so the check must not
+    # apply to it, or scheduling could never be switched on for chat at all.
+    if agent.kind != "chat" and not agent.vapi_assistant_id:
         raise HTTPException(
             status_code=400,
             detail="That agent isn't live on Vapi yet — fix its provisioning before linking Cal.com.",

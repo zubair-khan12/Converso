@@ -21,7 +21,8 @@ from ..vapi.client import (
     VapiError,
     delete_assistant,
 )
-from .models import Agent
+from ..widget import service as widget_service
+from .models import AGENT_KINDS, Agent
 from .provisioning import push_to_vapi
 
 router = APIRouter(prefix="/api/agents", tags=["agents"])
@@ -30,9 +31,18 @@ router = APIRouter(prefix="/api/agents", tags=["agents"])
 class CreateAgentRequest(BaseModel):
     name: str
     base_prompt: str
+    # "voice" (mirrored to a Vapi assistant, reached by phone) or "chat"
+    # (no Vapi side; served by our own chat endpoint).
+    kind: str = "voice"
     voice_id: str = DEFAULT_VOICE_ID
     temperature: float = Field(default=0.7, ge=0, le=2)
     first_message: str = ""
+
+
+class WidgetSettingsRequest(BaseModel):
+    enabled: bool
+    # Whatever the tenant typed; normalized (and junk dropped) server-side.
+    allowed_origins: list[str] = []
 
 
 class UpdateAgentRequest(BaseModel):
@@ -48,6 +58,7 @@ def _agent_public(agent: Agent) -> dict:
     return {
         "id": str(agent.id),
         "name": agent.name,
+        "kind": agent.kind,
         "base_prompt": agent.base_prompt,
         "voice_id": agent.voice,
         "temperature": cfg.get("temperature"),
@@ -58,9 +69,29 @@ def _agent_public(agent: Agent) -> dict:
         "provisioning_error": agent.provisioning_error,
         "vapi_assistant_id": agent.vapi_assistant_id,
         "is_active": agent.is_active,
+        "widget": _widget_public(agent),
         "created_at": agent.created_at.isoformat() if agent.created_at else None,
         "updated_at": agent.updated_at.isoformat() if agent.updated_at else None,
     }
+
+
+def _widget_public(agent: Agent) -> dict:
+    """The embed settings. The token is only meaningful once the widget is on,
+    so a disabled widget reports none — nothing to paste, nothing to leak."""
+    return {
+        "enabled": agent.widget_enabled,
+        "public_token": agent.public_token if agent.widget_enabled else None,
+        "allowed_origins": agent.allowed_origins or [],
+    }
+
+
+def _vapi_key_for(db: Session, tenant_id: str, kind: str) -> str | None:
+    """The tenant's Vapi key, or None for a chat agent — which needs no Vapi
+    account at all, so requiring one would block the whole chat feature behind
+    an integration it never touches."""
+    if kind == "chat":
+        return None
+    return _require_vapi_key(db, tenant_id)
 
 
 def _require_vapi_key(db: Session, tenant_id: str) -> str:
@@ -118,6 +149,11 @@ def get_call_credentials(
     tenant_id = claims["tenant_id"]
     agent = _get_agent_or_404(db, tenant_id, agent_id)
 
+    if agent.kind == "chat":
+        raise HTTPException(
+            status_code=400,
+            detail="Chat agents are tested from the chat panel, not by phone.",
+        )
     if agent.provisioning_status != "ready" or not agent.vapi_assistant_id:
         raise HTTPException(
             status_code=400,
@@ -145,7 +181,10 @@ def create_agent(
     db: Session = Depends(get_db),
 ):
     tenant_id = claims["tenant_id"]
-    api_key = _require_vapi_key(db, tenant_id)
+    if body.kind not in AGENT_KINDS:
+        raise HTTPException(status_code=400, detail="Unknown agent kind.")
+    is_chat = body.kind == "chat"
+    api_key = _vapi_key_for(db, tenant_id, body.kind)
 
     name = body.name.strip()
     base_prompt = body.base_prompt.strip()
@@ -153,14 +192,17 @@ def create_agent(
         raise HTTPException(status_code=400, detail="Agent name is required.")
     if not base_prompt:
         raise HTTPException(status_code=400, detail="A base prompt is required.")
-    if body.voice_id not in VOICE_IDS:
+    # A chat agent has no voice; ignore whatever the client sent rather than
+    # rejecting it, so one shared form can post to one endpoint.
+    if not is_chat and body.voice_id not in VOICE_IDS:
         raise HTTPException(status_code=400, detail="Unknown voice.")
 
     agent = Agent(
         tenant_id=tenant_id,
         name=name,
+        kind=body.kind,
         base_prompt=base_prompt,
-        voice=body.voice_id,
+        voice=None if is_chat else body.voice_id,
         config={
             "temperature": body.temperature,
             "model_provider": DEFAULT_MODEL_PROVIDER,
@@ -190,7 +232,7 @@ def update_agent(
 ):
     tenant_id = claims["tenant_id"]
     agent = _get_agent_or_404(db, tenant_id, agent_id)
-    api_key = _require_vapi_key(db, tenant_id)
+    api_key = _vapi_key_for(db, tenant_id, agent.kind)
 
     if body.name is not None:
         name = body.name.strip()
@@ -202,7 +244,7 @@ def update_agent(
         if not base_prompt:
             raise HTTPException(status_code=400, detail="A base prompt is required.")
         agent.base_prompt = base_prompt
-    if body.voice_id is not None:
+    if body.voice_id is not None and agent.kind != "chat":
         if body.voice_id not in VOICE_IDS:
             raise HTTPException(status_code=400, detail="Unknown voice.")
         agent.voice = body.voice_id
@@ -236,7 +278,7 @@ def train_agent(
     """
     tenant_id = claims["tenant_id"]
     agent = _get_agent_or_404(db, tenant_id, agent_id)
-    api_key = _require_vapi_key(db, tenant_id)
+    api_key = _vapi_key_for(db, tenant_id, agent.kind)
 
     summary = train_documents(db, tenant_id, str(agent.id))
 
@@ -290,9 +332,75 @@ def retry_agent(
     """Re-push local state to Vapi after a failed create/update."""
     tenant_id = claims["tenant_id"]
     agent = _get_agent_or_404(db, tenant_id, agent_id)
-    api_key = _require_vapi_key(db, tenant_id)
+    api_key = _vapi_key_for(db, tenant_id, agent.kind)
 
     push_to_vapi(db, agent, api_key)
     db.commit()
     db.refresh(agent)
     return _agent_public(agent)
+
+
+@router.put("/{agent_id}/widget")
+def set_widget(
+    agent_id: str,
+    body: WidgetSettingsRequest,
+    claims: dict = Depends(get_current_claims),
+    db: Session = Depends(get_db),
+):
+    """Turn the website widget on or off and set which sites may embed it.
+
+    Enabling with no origins is refused rather than quietly allowed: the widget
+    spends the platform OpenAI key, so "live but unrestricted" must not be
+    something a tenant can reach by leaving a field blank.
+    """
+    agent = _get_agent_or_404(db, claims["tenant_id"], agent_id)
+
+    origins: list[str] = []
+    for raw in body.allowed_origins:
+        normalized = widget_service.normalize_origin(raw)
+        if normalized is None:
+            raise HTTPException(
+                status_code=400,
+                detail=f"'{raw}' isn't a valid website address. Use a form like https://example.com.",
+            )
+        if normalized not in origins:
+            origins.append(normalized)
+
+    if body.enabled and not origins:
+        raise HTTPException(
+            status_code=400,
+            detail="Add at least one website before turning the widget on.",
+        )
+    if body.enabled and agent.kind == "voice" and not agent.vapi_assistant_id:
+        raise HTTPException(
+            status_code=400,
+            detail="This agent isn't live on Vapi yet — fix its provisioning first.",
+        )
+
+    agent.allowed_origins = origins
+    agent.widget_enabled = body.enabled
+    # Minted on first enable and kept thereafter, so turning the widget off and
+    # on again doesn't silently break every site already embedding it.
+    if body.enabled and not agent.public_token:
+        agent.public_token = widget_service.new_token()
+    db.commit()
+    db.refresh(agent)
+    return _widget_public(agent)
+
+
+@router.post("/{agent_id}/widget/rotate")
+def rotate_widget_token(
+    agent_id: str,
+    claims: dict = Depends(get_current_claims),
+    db: Session = Depends(get_db),
+):
+    """Issue a new token, invalidating the old snippet everywhere it's pasted.
+    The point of the feature — a token published on a site is one that can leak,
+    and the answer to a leak has to be something the tenant can do themselves."""
+    agent = _get_agent_or_404(db, claims["tenant_id"], agent_id)
+    if not agent.widget_enabled:
+        raise HTTPException(status_code=400, detail="Turn the widget on first.")
+    agent.public_token = widget_service.new_token()
+    db.commit()
+    db.refresh(agent)
+    return _widget_public(agent)

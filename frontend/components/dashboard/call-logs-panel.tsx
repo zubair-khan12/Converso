@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   ChevronDown,
   Globe,
+  MessagesSquare,
   PhoneIncoming,
   PhoneOutgoing,
   Wrench,
@@ -26,6 +27,14 @@ const STATUS_LABEL: Record<CallLog["status"], string> = {
   active: "In progress",
   failed: "Failed",
 };
+
+/** A chat has no hang-up, so nothing ever moves it off `active` — "In progress"
+ *  on every row would read as though they were all still live. "Open" is the
+ *  true statement: the session can still be continued. */
+function statusLabel(call: CallLog): string {
+  if (call.channel === "chat" && call.status === "active") return "Open";
+  return STATUS_LABEL[call.status];
+}
 
 const DIRECTION_ICON = {
   inbound: PhoneIncoming,
@@ -60,6 +69,7 @@ function endedReason(raw: string | null): string | null {
 }
 
 function who(call: CallLog): string {
+  if (call.channel === "chat") return call.agent_name ?? "Chat session";
   if (call.caller_number) return call.caller_number;
   return call.direction === "web" ? "Web test call" : "Unknown caller";
 }
@@ -89,7 +99,12 @@ function Detail({ call }: { call: CallLogDetail }) {
             {turns.map((turn) => (
               <li key={turn.seq} className="text-sm">
                 <span className="font-semibold text-[var(--ink-muted)]">
-                  {turn.role === "assistant" ? "Agent" : "Caller"}:
+                  {turn.role === "assistant"
+                    ? "Agent"
+                    : call.channel === "chat"
+                      ? "Visitor"
+                      : "Caller"}
+                  :
                 </span>{" "}
                 <span className="text-[var(--ink)]">{turn.content}</span>
               </li>
@@ -101,8 +116,9 @@ function Detail({ call }: { call: CallLogDetail }) {
           </pre>
         ) : (
           <p className="mt-1 text-sm text-[var(--ink-muted)]">
-            No transcript — the call ended before anything was said, or it
-            started before call logging was switched on.
+            {call.channel === "chat"
+              ? "No messages — the session was opened but nothing was sent."
+              : "No transcript — the call ended before anything was said, or it started before call logging was switched on."}
           </p>
         )}
       </div>
@@ -141,7 +157,8 @@ function CallRow({ call }: { call: CallLog }) {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const DirectionIcon = DIRECTION_ICON[call.direction];
+  const isChat = call.channel === "chat";
+  const DirectionIcon = isChat ? MessagesSquare : DIRECTION_ICON[call.direction];
 
   async function toggle() {
     const next = !open;
@@ -184,14 +201,22 @@ function CallRow({ call }: { call: CallLog }) {
               />
             </span>
             <span className="block truncate text-xs text-[var(--ink-muted)]">
-              {call.agent_name ?? "Deleted agent"} · {when(call.started_at)}
+              {isChat
+                ? when(call.started_at)
+                : `${call.agent_name ?? "Deleted agent"} · ${when(call.started_at)}`}
               {reason && ` · ${reason}`}
             </span>
           </span>
         </button>
 
         <div className="flex shrink-0 items-center gap-3 pl-12 sm:pl-0">
-          {call.recording_url ? (
+          {isChat ? (
+            // A chat has nothing to play; its content is the transcript, which
+            // is one click away in the row itself.
+            <span className="text-xs text-[var(--ink-muted)]">
+              Open to read the transcript
+            </span>
+          ) : call.recording_url ? (
             // Vapi hosts the recording; the URL is what its end-of-call report
             // handed us, so playback is a plain <audio> with no proxying.
             <audio
@@ -209,7 +234,7 @@ function CallRow({ call }: { call: CallLog }) {
             {duration(call.duration_seconds)}
           </span>
           <StatusPill tone={STATUS_TONE[call.status]}>
-            {STATUS_LABEL[call.status]}
+            {statusLabel(call)}
           </StatusPill>
         </div>
       </div>
@@ -237,19 +262,25 @@ export function CallLogsPanel({
   calls,
   total,
   hasMore,
+  channel = "voice",
 }: {
   calls: CallLog[];
   total: number;
   hasMore: boolean;
+  channel?: "voice" | "chat";
 }) {
   if (calls.length === 0) {
     return (
       <Card>
         <CardContent className="p-0">
           <EmptyState
-            icon={PhoneIncoming}
-            title="No calls yet"
-            body="Attach a phone number to an agent, or start a web test call from the Agents screen — every call is logged here with its recording and transcript."
+            icon={channel === "chat" ? MessagesSquare : PhoneIncoming}
+            title={channel === "chat" ? "No chats yet" : "No calls yet"}
+            body={
+              channel === "chat"
+                ? "Open a chat agent from the Agents screen — every conversation is saved here with its transcript and the lookups the agent made."
+                : "Attach a phone number to an agent, or start a web test call from the Agents screen — every call is logged here with its recording and transcript."
+            }
           />
         </CardContent>
       </Card>
@@ -269,7 +300,8 @@ export function CallLogsPanel({
       </Card>
       {hasMore && (
         <p className="text-xs text-[var(--ink-muted)]">
-          Showing the {calls.length} most recent of {total} calls.
+          Showing the {calls.length} most recent of {total}{" "}
+          {channel === "chat" ? "conversations" : "calls"}.
         </p>
       )}
     </div>

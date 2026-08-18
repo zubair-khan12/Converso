@@ -80,6 +80,26 @@ Use `find_available_slots` to see real free times (never guess one) and
 `book_meeting` to confirm. Convert anything the caller says — "tomorrow", "next
 Tuesday" — into a YYYY-MM-DD date yourself before calling the tool."""
 
+# Cal.com is connected per tenant but armed for exactly ONE agent, so a tenant
+# can paste the scheduling prompt into an agent that has no booking tools. The
+# model then plays along and says "you're booked" — the worst possible failure,
+# since the customer believes a meeting exists and nobody is told otherwise.
+# This is the counterweight: when the prompt talks about booking and the tools
+# aren't there, the model is told plainly that it cannot book.
+NO_SCHEDULING_SECTION = """# You cannot book meetings
+You have NO scheduling tools on this conversation. Never say a meeting is
+booked, confirmed, or scheduled, and never invent a time or a confirmation.
+If someone asks to book, tell them you can't book it yourself and offer to pass
+the request on."""
+
+# Words that mean the tenant's prompt is promising scheduling. Only then is the
+# note above worth spending prompt space on — an agent that never mentions
+# booking doesn't need to be told it can't.
+_SCHEDULING_WORDS = (
+    "book", "booking", "meeting", "appointment", "schedule", "scheduling",
+    "slot", "calendar", "consultation",
+)
+
 # The couple of sentences seeded into a new agent's base prompt so, even before
 # the tenant writes their own, the agent is oriented toward the knowledge base.
 DEFAULT_KB_BASE_PROMPT = (
@@ -167,11 +187,18 @@ def _llm(temperature: float) -> ChatOpenAI:
     )
 
 
+def _promises_scheduling(base_prompt: str) -> bool:
+    lowered = base_prompt.lower()
+    return any(word in lowered for word in _SCHEDULING_WORDS)
+
+
 def _system_prompt(state: BrainState) -> str:
     parts = [(state.get("base_prompt") or "").strip()]
     if state.get("rag_enabled"):
         parts.append(KB_SECTION.format(context=state.get("context") or _format_context([])))
     calcom = state.get("calcom")
+    if not calcom and _promises_scheduling(state.get("base_prompt") or ""):
+        parts.append(NO_SCHEDULING_SECTION)
     if calcom:
         today = today_in(calcom)
         parts.append(

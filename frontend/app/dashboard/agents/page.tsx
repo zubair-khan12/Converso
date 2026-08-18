@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
-
 import { AgentsPanel } from "@/components/dashboard/agents-panel";
 import { getAgents, getVapiStatus } from "@/lib/session";
 
@@ -7,15 +5,12 @@ export const metadata = {
   title: "Agents · Converso",
 };
 
-// Enforced server-side, not just hidden in the sidebar — a direct hit on this
-// URL without a connected Vapi account bounces to the setup page. The backend
-// independently rejects agent writes without a connected key too
-// (see app/agents/router.py), so the gate holds even if this is bypassed.
+// Deliberately not Vapi-gated as a whole: chat agents need no Vapi account, so
+// bouncing the entire screen would hide a feature that works. The voice half
+// says what's missing instead, and the backend still rejects voice-agent writes
+// without a connected key (see app/agents/router.py).
 export default async function AgentsPage() {
-  const status = await getVapiStatus();
-  if (!status.connected) redirect("/dashboard/vapi-setup");
-
-  const agents = await getAgents();
+  const [status, agents] = await Promise.all([getVapiStatus(), getAgents()]);
 
   return (
     <div className="space-y-6">
@@ -28,7 +23,7 @@ export default async function AgentsPage() {
         </p>
       </div>
 
-      <AgentsPanel agents={agents} />
+      <AgentsPanel agents={agents} vapiConnected={status.connected} />
     </div>
   );
 }
