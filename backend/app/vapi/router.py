@@ -2,12 +2,14 @@
 
 Two very different audiences live here:
   - `GET /api/vapi/voices` — called by our own frontend (JWT-gated).
-  - `POST /api/vapi/custom-llm/{agent_id}/chat/completions` — called by *Vapi's*
-    servers mid-call (no JWT; it's Vapi, not a browser). This is the custom-LLM
-    endpoint: a trained agent's Vapi assistant points its `model.url` here, so
-    every conversational turn runs through our LangGraph RAG brain. The agent is
-    identified by the unguessable UUID in the path (a capability token) — never
-    trusted from the request body.
+  - `POST /api/vapi/custom-llm/{agent_id}/chat/completions` and
+    `POST /api/vapi/webhook/{agent_id}` — called by *Vapi's* servers (no JWT;
+    it's Vapi, not a browser). The first is the custom-LLM endpoint: a trained
+    agent's Vapi assistant points its `model.url` here, so every conversational
+    turn runs through our LangGraph RAG brain. The second is the server webhook
+    every agent gets, trained or not — it's what turns a call into a call log.
+    Both identify the agent by the unguessable UUID in the path (a capability
+    token) — never trusted from the request body.
 """
 import json
 import time
@@ -21,7 +23,8 @@ from starlette.concurrency import run_in_threadpool
 
 from ..agents.models import Agent
 from ..config import settings
-from ..conversations.models import Conversation, ToolExecution
+from ..conversations import service as conversations
+from ..conversations.models import ToolExecution
 from ..database import get_db
 from ..deps import get_current_claims
 from ..integrations.service import get_calcom_config
@@ -77,27 +80,9 @@ def _persist_trace(
 ) -> None:
     """Save what the brain did this turn — the retrieval, plus any scheduling
     tool calls — so past turns are inspectable (the 'saved' half of
-    console+saved). Upserts a Conversation per Vapi call so several turns of one
-    call group together."""
-    conv = None
-    if call_id:
-        conv = (
-            db.query(Conversation)
-            .filter(
-                Conversation.tenant_id == agent.tenant_id,
-                Conversation.vapi_call_id == call_id,
-            )
-            .first()
-        )
-    if conv is None:
-        conv = Conversation(
-            tenant_id=agent.tenant_id,
-            agent_id=agent.id,
-            vapi_call_id=call_id,
-            status="active",
-        )
-        db.add(conv)
-        db.flush()
+    console+saved). Shares the call-log upsert so a brain turn and the
+    end-of-call report land on the same Conversation row."""
+    conv = conversations.get_or_create(db, agent=agent, call_id=call_id)
 
     chunks = result.get("chunks", [])
     if chunks or result.get("retrieval_ms"):
@@ -226,6 +211,55 @@ def _tokenize(text: str) -> list[str]:
     if cur:
         out.append(cur)
     return out
+
+
+# --- Server webhook (called by Vapi, not the browser) ---
+
+
+def _handle_event(db: Session, agent_id: str, message: dict) -> str:
+    """Route one Vapi server message to its handler. Returns what we did, for
+    the console trace."""
+    agent = db.query(Agent).filter(Agent.id == agent_id).first()
+    if agent is None:
+        raise HTTPException(status_code=404, detail="Unknown agent.")
+
+    kind = message.get("type")
+    if kind == "end-of-call-report":
+        conv = conversations.record_end_of_call(db, agent, message)
+        return f"call log {conv.id} finalized" if conv else "ignored (no call id)"
+    if kind == "status-update":
+        conv = conversations.record_status_update(db, agent, message)
+        return f"call log {conv.id} updated" if conv else "ignored (no call id)"
+    # Vapi sends plenty of other message types (speech-update, transcript, …).
+    # Acknowledge them so it doesn't retry, but don't store them.
+    return f"ignored ({kind})"
+
+
+@router.post("/webhook/{agent_id}")
+async def vapi_webhook(agent_id: str, request: Request, db: Session = Depends(get_db)):
+    """Vapi's server messages for one agent — where call logs come from.
+
+    Like the custom-LLM endpoint, the agent UUID in the path is the capability
+    token; Vapi sends no JWT. Always answers 200 unless the agent is unknown:
+    a 5xx makes Vapi retry, and a webhook failure must never look like a call
+    failure.
+    """
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid JSON body.")
+
+    message = body.get("message") if isinstance(body.get("message"), dict) else body
+    try:
+        outcome = await run_in_threadpool(_handle_event, db, agent_id, message)
+        print(f"[vapi-webhook] {message.get('type')} → {outcome}")
+    except HTTPException:
+        raise
+    except Exception as exc:  # never fail a webhook over a persistence bug
+        db.rollback()
+        print(f"[vapi-webhook] warning: could not persist {message.get('type')}: {exc}")
+
+    return {"received": True}
 
 
 @router.post("/custom-llm/{agent_id}/chat/completions")

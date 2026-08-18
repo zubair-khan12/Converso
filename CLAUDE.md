@@ -315,6 +315,51 @@ hand back to `book_meeting`. Every tool call is console-traced and persisted as
 a `ToolExecution` (`calcom_find_slots` / `calcom_book_meeting`) next to the RAG
 trace. **Inbound scheduling only** — no rescheduling or cancelling.
 
+## Call logs + dashboard stats
+
+Every assistant carries `server.url =
+{PUBLIC_BACKEND_URL}/api/vapi/webhook/{agent_id}` and subscribes to exactly two
+`serverMessages`: `status-update` and `end-of-call-report` (`SERVER_MESSAGES` in
+`app/vapi/client.py`). Like the custom-LLM endpoint, the agent UUID in the path
+is the capability token — Vapi sends no JWT — and the endpoint always answers
+200 unless the agent is unknown, because a 5xx just makes Vapi retry.
+
+`app/conversations/service.py` owns the writes. Everything is an **upsert keyed
+on (tenant_id, vapi_call_id)** and only fills fields it actually has, because
+the pieces arrive out of order: a custom-LLM turn can create the row before the
+first status-update, and a resent report may carry no timing at all. Hence two
+rules worth keeping: a finished call never walks back to `active`, and the
+timestamp-derived duration only fills a gap — Vapi's own `durationSeconds`
+wins, and neither overwrites a duration already stored. `_sync_messages`
+rewrites the turn-by-turn `messages` from the report (authoritative, arrives
+once), translating Vapi's `bot` role to our `assistant`.
+
+Untrained agents produce call logs too — this is the only persistence path that
+doesn't depend on RAG. Rows created *before* this webhook existed have no
+timing and stay `active` forever; they're harmless but read as "In progress".
+
+`artifactPlan.recordingEnabled` is set explicitly (not left to Vapi's default)
+because the Call Logs screen plays `recordingUrl` back — playback silently
+disappearing because of an account setting would be worse than a loud failure.
+
+Two read surfaces:
+
+- `GET /api/dashboard/summary` (`app/dashboard/router.py`) — one round-trip for
+  the whole dashboard home: agent/number/document counts, call and minute
+  totals (total + this month), unique callers, average duration, spend, and the
+  five most recent calls. `getDashboardSummary()` returns **null** when the
+  backend is unreachable, which the UI must render differently from a real
+  zero — `—`, not `0`.
+- `GET /api/conversations` + `/{id}` (`app/conversations/router.py`) — the Call
+  Logs screen. The list deliberately omits transcript/summary/messages (a few
+  hundred full transcripts is a slow page for text nobody asked to read) but
+  *does* carry `recording_url`, so a row plays inline with no extra request.
+  Detail is fetched once per row when it's expanded, via the
+  `/api/conversations/[id]` Route Handler.
+
+Recordings are served straight from Vapi's URL — we don't proxy or re-host
+them, and nothing about a call is stored as a file on our side.
+
 ## Phone numbers (inbound calls)
 
 A `PhoneNumber` row mirrors `Agent`'s two-places-kept-in-sync pattern: every
@@ -356,7 +401,10 @@ carrier) — not attempted; the provider layer is pluggable if one is found.
 Done: landing page, login (httpOnly cookie), self-signup + tenant account
 status (disable/re-enable from `/admin`, locked-account screen), first-login
 onboarding tour,
-dashboard shell, dashboard home (honest empty states), Configure Vapi (key
+dashboard shell, dashboard home (live counts from `GET
+/api/dashboard/summary` + recent calls), call logging from Vapi's server
+webhook, Call Logs (recording playback, transcript, per-call tool trace),
+Configure Vapi (key
 encrypted at rest), Voice agents CRUD synced to Vapi + web test calls,
 Knowledge Base (text/PDF upload, LangGraph RAG via custom-LLM, console+DB
 retrieval trace), Phone Numbers (Vapi-native + Twilio/Telnyx bring-your-own,
@@ -364,10 +412,11 @@ inbound only), Integrations → Cal.com scheduling (LangGraph tool #2). Chat
 agents tab locked ("Launching soon").
 
 Deferred / not yet built: email verification at signup, invite links (a second
-user in an existing tenant), password reset, real `GET /api/dashboard/summary`
-(dashboard shows placeholders), rescheduling/cancelling a booked meeting,
-outbound calling,
-Call Logs/Settings screens, document object storage (only
+user in an existing tenant), password reset,
+rescheduling/cancelling a booked meeting, outbound calling,
+pagination on Call Logs (the newest 50 only — the API takes limit/offset, the
+screen doesn't use them yet) and filtering by agent/status, Settings screen,
+document object storage (only
 extracted text is kept, not raw files), end-call *function* under custom-LLM
 (endCallPhrases still work), true token-streaming from the graph (currently
 computes then chunks), the two-venv consolidation, `infra/` deploy config.

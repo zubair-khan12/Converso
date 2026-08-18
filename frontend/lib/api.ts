@@ -3,6 +3,7 @@
 // directly, so the JWT is never exposed to JavaScript.
 import type {
   Agent,
+  CallLogDetail,
   CalcomStatus,
   CallCredentials,
   KnowledgeDocument,
@@ -443,4 +444,24 @@ async function agentWrite(
     return { ok: false, error: data.error ?? "Something went wrong. Try again." };
   }
   return { ok: true, agent: data as Agent };
+}
+
+export type CallDetailResult =
+  | { ok: true; call: CallLogDetail }
+  | { ok: false; error: string };
+
+/** One call in full, fetched when a Call Logs row is opened. */
+export async function fetchCallDetail(id: string): Promise<CallDetailResult> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/conversations/${id}`);
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "Could not load this call." };
+  }
+  return { ok: true, call: data as CallLogDetail };
 }
