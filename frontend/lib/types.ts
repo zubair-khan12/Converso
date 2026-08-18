@@ -114,9 +114,15 @@ export type CalcomStatus = {
   scheduling_prompt: string | null;
 };
 
+/** Voice and chat agents are the same row with the same brain; `kind` is the
+ *  transport. A chat agent has no Vapi assistant and no voice. */
+export type AgentKind = "voice" | "chat";
+
 export type Agent = {
   id: string;
   name: string;
+  kind: AgentKind;
+  widget: WidgetSettings;
   base_prompt: string;
   voice_id: string | null;
   temperature: number | null;
@@ -158,6 +164,10 @@ export type DashboardSummary = {
     in_progress: number;
     failed: number;
   };
+  /** Chat sessions are counted separately: they share the conversations table
+   *  but have no duration or caller, so folding them into `calls` would inflate
+   *  every voice number. */
+  chats: { total: number; this_month: number };
   minutes: { total: number; this_month: number };
   unique_callers: number;
   avg_duration_seconds: number;
@@ -169,6 +179,8 @@ export type DashboardSummary = {
  *  entry with what playback and detail-fetching need. */
 export type CallLog = CallLogEntry & {
   agent_id: string | null;
+  /** Voice and chat conversations share one table and one API. */
+  channel: "voice" | "chat";
   cost_usd: number | null;
   recording_url: string | null;
   ended_at: string | null;
@@ -201,4 +213,38 @@ export type CallLogDetail = CallLog & {
   transcript: string | null;
   messages: CallMessage[];
   tool_executions: CallToolExecution[];
+};
+
+/** Why an answer looked the way it did — shown under the reply in the test
+ *  panel so the knowledge lookup and any booking calls are visible. */
+export type ChatTrace = {
+  retrieval_ms: number | null;
+  sources: { filename: string; score: number }[];
+  tools: { tool_name: string; status: string; latency_ms: number | null }[];
+};
+
+export type ChatReply = {
+  session_id: string;
+  answer: string;
+  trace: ChatTrace;
+};
+
+/** What a public widget needs to render itself. Deliberately thin: no prompt,
+ *  no knowledge, no trace — this object is served to anonymous visitors. */
+export type WidgetConfig = {
+  agent_id: string;
+  name: string;
+  kind: AgentKind;
+  first_message: string;
+  knowledge_trained: boolean;
+  /** Voice agents only. The Vapi *public* key is publishable by design. */
+  assistant_id?: string | null;
+  public_key?: string | null;
+};
+
+/** Embed settings for one agent, as the dashboard manages them. */
+export type WidgetSettings = {
+  enabled: boolean;
+  public_token: string | null;
+  allowed_origins: string[];
 };

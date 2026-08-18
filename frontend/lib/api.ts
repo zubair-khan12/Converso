@@ -3,7 +3,10 @@
 // directly, so the JWT is never exposed to JavaScript.
 import type {
   Agent,
+  AgentKind,
   CallLogDetail,
+  ChatReply,
+  WidgetSettings,
   CalcomStatus,
   CallCredentials,
   KnowledgeDocument,
@@ -132,6 +135,8 @@ export async function getCallCredentials(
 
 export type AgentInput = {
   name: string;
+  /** Omitted on update — an agent never changes transport after creation. */
+  kind?: AgentKind;
   base_prompt: string;
   voice_id: string;
   temperature: number;
@@ -464,4 +469,68 @@ export async function fetchCallDetail(id: string): Promise<CallDetailResult> {
     return { ok: false, error: data.error ?? "Could not load this call." };
   }
   return { ok: true, call: data as CallLogDetail };
+}
+
+export type ChatResult =
+  | { ok: true; reply: ChatReply }
+  | { ok: false; error: string };
+
+/** Send one message to a chat agent. Pass the `session_id` from the previous
+ *  reply to continue the same conversation; omit it to start a new one. */
+export async function sendChatMessage(
+  agentId: string,
+  message: string,
+  sessionId?: string,
+): Promise<ChatResult> {
+  let res: Response;
+  try {
+    res = await fetch(`/api/chat/${agentId}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message, session_id: sessionId }),
+    });
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "The agent could not reply." };
+  }
+  return { ok: true, reply: data as ChatReply };
+}
+
+export type WidgetResult =
+  | { ok: true; widget: WidgetSettings }
+  | { ok: false; error: string };
+
+async function widgetWrite(url: string, body?: unknown): Promise<WidgetResult> {
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: body ? "PUT" : "POST",
+      headers: body ? { "Content-Type": "application/json" } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    return { ok: false, error: "Network error. Try again." };
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    return { ok: false, error: data.error ?? "Could not save the widget." };
+  }
+  return { ok: true, widget: data as WidgetSettings };
+}
+
+/** Turn the website widget on/off and set which sites may embed it. */
+export async function saveWidget(
+  agentId: string,
+  input: { enabled: boolean; allowed_origins: string[] },
+): Promise<WidgetResult> {
+  return widgetWrite(`/api/agents/${agentId}/widget`, input);
+}
+
+/** Issue a new public token, breaking every snippet already pasted. */
+export async function rotateWidgetToken(agentId: string): Promise<WidgetResult> {
+  return widgetWrite(`/api/agents/${agentId}/widget/rotate`);
 }

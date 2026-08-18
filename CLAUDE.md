@@ -211,7 +211,99 @@ Shared pieces worth reaching for before writing markup:
   resets are scoped to `@layer base` so Tailwind utilities always win.
 - Landing page (`app/page.tsx`) is intentionally bespoke CSS modules, not
   Tailwind/shadcn — everything under `/dashboard` and `/login` uses
-  Tailwind + shadcn.
+  Tailwind + shadcn. It sells **both channels**: hero → four shared building
+  blocks → four ordered steps → a voice/chat pair (voice gets the one dark
+  panel, chat shows the actual snippet) → FAQ → closing CTA. The step numbering
+  is real sequence, not decoration — an agent can't be grounded before it
+  exists or go live before it can answer.
+- Product copy is **channel-neutral by default**. Anything that says "caller",
+  "call" or "voice" should be true only where the voice path is genuinely
+  what's meant; the onboarding tour in particular has to read sensibly for a
+  signup who will only ever use the website chat.
+
+## Chat agents
+
+A chat agent is **the same `Agent` row** as a voice agent — `agents.kind` is
+`voice` | `chat` — running the same LangGraph brain, the same knowledge base and
+the same Cal.com tools. Only the transport differs, and that is the whole point:
+a fix to retrieval or booking lands on both channels at once, and the Agents
+screen is one list with a tab rather than two half-built sections.
+
+What `kind="chat"` changes:
+
+- **No Vapi side at all.** `push_to_vapi` returns early for a chat agent and
+  marks it `ready` — the guard lives there, not at each call site, so no future
+  caller can provision one by accident. It follows that chat agents need no Vapi
+  key, so Agents and Knowledge Base are **no longer Vapi-gated**; only the voice
+  tab says "connect Vapi first". `resync_tenant_agents` skips them for free,
+  since it filters on `vapi_assistant_id`.
+- **Turns arrive over HTTP** at `POST /api/chat/{agent_id}/messages`
+  (`app/chat/`), JWT-gated like the rest of the product API. There is
+  deliberately **no public/unauthenticated variant yet**: an open endpoint runs
+  the *platform* OpenAI key for anyone who finds the URL, so a website widget
+  needs a per-agent public token, per-domain CORS and rate limits first.
+- **Cal.com works the same, with two exemptions.** Linking checks the agent is
+  live on Vapi — meaningless for a chat agent, which has no assistant — so that
+  guard is skipped for `kind="chat"`, and the Integrations screen is not
+  Vapi-gated either. `app/calcom/prompt.py` generates a **chat wording** of the
+  same steps: telling a chat agent to read an email back "out loud" and keep
+  replies "spoken-friendly" produces stilted text, and a visitor can see their
+  own typing.
+- **A session is a `Conversation` with `channel="chat"`**, so transcripts, the
+  tool trace and the dashboard stats work with no new plumbing. Consequences
+  worth keeping: the Conversations screen (`/dashboard/call-logs`) is one screen
+  with a **Calls / Chats tab** driven by `?channel=`, never one interleaved list
+  — a chat row has no recording, duration or caller, so mixing them leaves every
+  column half-empty. A chat also never hangs up, so `active` renders as "Open"
+  rather than "In progress". Every call/minute rollup in
+  `dashboard/router.py` is explicitly voice-only — otherwise opening the chat
+  panel would inflate "total calls".
+- **The chat UI is its own page** (`/chat/{agent_id}`, outside `/dashboard`, in
+  the same tab): a chat is a sustained back-and-forth, and a modal over the
+  agents list makes it feel disposable while hiding everything behind it. No
+  sidebar, so the header carries an explicit back link; `/chat/:path*` is in the
+  proxy matcher so an expired session bounces to login.
+
+One trap that cost a debugging round: the graph's agent node prompts on
+`state["messages"]` alone — `query` only drives retrieval — so **the current
+user turn must be appended to the history** before `run_brain`, or the model
+answers without ever seeing the question. The voice path gets this free because
+Vapi's payload already ends with the caller's turn; `chat/service.py` has to do
+it explicitly.
+
+`Document.agent` uses `passive_deletes=True`: `documents.agent_id` is NOT NULL
+with ON DELETE CASCADE, and without it SQLAlchemy tries to null the column
+first, so deleting *any* agent that has a knowledge source failed.
+
+## The website widget (the only public surface)
+
+Any agent — voice or chat — can be embedded on the tenant's own site. Two
+snippets, both built from one `agents.public_token`: a `<script>` that adds a
+floating bubble (`frontend/public/widget.js`, dependency-free and touching
+nothing on the host page), and an `<iframe>` for embedding inline. Both load
+`/widget/{token}`, which renders `WidgetChat` or `WidgetVoice`.
+
+This is the **one unauthenticated product surface**, and a widget turn spends
+the *platform* OpenAI key, so an open endpoint is an open invoice. Three
+independent guards, in `app/widget/`, each failing closed:
+
+- **The token** is separate from the agent's UUID (it is published in page
+  source, so leaking it must not expose an id used elsewhere) and is rotatable
+  from the dashboard — the only real answer to a leak.
+- **`agents.allowed_origins`** must be non-empty before the widget can be
+  enabled: "live but unrestricted" must not be reachable by leaving a field
+  blank. **Inside an iframe the browser reports *our* origin, not the embedding
+  site's**, so the parent origin is forwarded as `X-Widget-Origin`, taken from
+  the frame request's `Referer` (which page JS cannot forge) and falling back to
+  the `?o=` the launcher adds.
+- **Rate limits** are the real backstop, precisely because a non-browser client
+  can send any origin it likes: 20 messages/minute per IP+token (in-process, so
+  per-worker — Redis is the upgrade path) and a 500/day per-tenant cap counted
+  from `messages`, so it survives a restart.
+
+The public response deliberately omits the trace the dashboard shows — sources,
+latency and tool timings are facts about the tenant's knowledge base, not
+something to render on their customers' screens.
 
 ## Voice agents + the LangGraph brain (Vapi custom-LLM)
 
@@ -250,6 +342,13 @@ answer*. `RECURSION_LIMIT` is only a backstop, and hitting it returns
 `FALLBACK_ANSWER` rather than raising. Finally the custom-LLM endpoint catches
 everything — it always returns valid SSE, because a 500 gives Vapi nothing to
 say and the caller just hears dead air.
+
+Cal.com is armed for exactly **one agent per tenant**, so a tenant can paste the
+scheduling prompt into an agent that has no tools — and the model then *claims*
+a booking that never happened, which is worse than refusing: the customer blocks
+out time for a meeting nobody scheduled. `NO_SCHEDULING_SECTION` is the
+counterweight: when the base prompt mentions booking and `calcom` is None, the
+brain tells the model plainly that it cannot book. It applies to both channels.
 
 Two things that made a small model (`gpt-4.1-nano`) loop, both fixed and worth
 not regressing: tool output that told it to "look again" (tools now report
@@ -403,15 +502,16 @@ status (disable/re-enable from `/admin`, locked-account screen), first-login
 onboarding tour,
 dashboard shell, dashboard home (live counts from `GET
 /api/dashboard/summary` + recent calls), call logging from Vapi's server
-webhook, Call Logs (recording playback, transcript, per-call tool trace),
+webhook, Conversations (calls + chats, recording playback, transcript, tool trace),
 Configure Vapi (key
 encrypted at rest), Voice agents CRUD synced to Vapi + web test calls,
 Knowledge Base (text/PDF upload, LangGraph RAG via custom-LLM, console+DB
 retrieval trace), Phone Numbers (Vapi-native + Twilio/Telnyx bring-your-own,
-inbound only), Integrations → Cal.com scheduling (LangGraph tool #2). Chat
-agents tab locked ("Launching soon").
+inbound only), Integrations → Cal.com scheduling (LangGraph tool #2), chat
+agents (same brain over HTTP, tested from the dashboard chat panel).
 
-Deferred / not yet built: email verification at signup, invite links (a second
+Deferred / not yet built: a Chat Logs screen (the
+email verification at signup, invite links (a second
 user in an existing tenant), password reset,
 rescheduling/cancelling a booked meeting, outbound calling,
 pagination on Call Logs (the newest 50 only — the API takes limit/offset, the

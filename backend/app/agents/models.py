@@ -1,4 +1,4 @@
-"""Voice agents — the configurable unit a caller talks to."""
+"""Agents — the configurable unit a customer talks to, by phone or by chat."""
 from sqlalchemy import Boolean, Column, String, Text
 from sqlalchemy.dialects.postgresql import JSONB
 
@@ -13,14 +13,22 @@ from ..database import Base
 #   failed  → the Vapi call failed; provisioning_error explains why, retry-able
 PROVISIONING_STATUSES = ("pending", "ready", "failed")
 
+# What an agent talks over. Both kinds are the same row and share the same
+# LangGraph brain, knowledge base and Cal.com scheduling — they differ only in
+# transport: a `voice` agent is mirrored to a Vapi assistant and reached by
+# phone, a `chat` agent has no Vapi side at all and is reached over HTTP.
+AGENT_KINDS = ("voice", "chat")
+
 
 class Agent(TenantScopedMixin, TimestampMixin, Base):
     __tablename__ = "agents"
 
     id = _uuid_pk()
     name = Column(String(255), nullable=False)
+    kind = Column(String(16), nullable=False, default="voice", index=True)
     base_prompt = Column(Text, nullable=False, default="")
-    # The chosen voice id (currently always a built-in Vapi voice).
+    # The chosen voice id (currently always a built-in Vapi voice). Always null
+    # for a chat agent.
     voice = Column(String(120), nullable=True)
     # Misc model configuration: temperature, model provider/name.
     config = Column(JSONB, nullable=False, default=dict)
@@ -33,6 +41,18 @@ class Agent(TenantScopedMixin, TimestampMixin, Base):
     provisioning_error = Column(Text, nullable=True)
 
     is_active = Column(Boolean, nullable=False, default=True)
+
+    # --- Public website widget ---
+    # The capability token in the embed snippet. Unguessable and rotatable: it
+    # is visible in the page source of any site that embeds the agent, so it is
+    # deliberately NOT the agent's UUID — leaking it must not expose an id used
+    # anywhere else, and rotating it must not break the rest of the system.
+    public_token = Column(String(64), nullable=True, unique=True, index=True)
+    widget_enabled = Column(Boolean, nullable=False, default=False)
+    # Origins allowed to embed this agent, e.g. ["https://acme.com"]. Empty
+    # means nothing may embed it: the widget spends the *platform* OpenAI key,
+    # so "no list yet" has to fail closed, never "allow everyone".
+    allowed_origins = Column(JSONB, nullable=False, default=list)
 
     tenant = relationship("Tenant", backref="agents")
 

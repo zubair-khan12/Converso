@@ -29,6 +29,7 @@ def _summary_public(conv: Conversation) -> dict:
         "agent_name": conv.agent.name if conv.agent else None,
         "caller_number": conv.caller_number,
         "direction": conv.direction,
+        "channel": conv.channel,
         "status": conv.status,
         "ended_reason": conv.ended_reason,
         "duration_seconds": conv.duration_seconds,
@@ -68,6 +69,9 @@ def list_conversations(
     offset: int = Query(default=0, ge=0),
     agent_id: str | None = None,
     status: str | None = None,
+    # Voice and chat share this table; a caller must say which it wants, or it
+    # gets both. The Call Logs screen asks for "voice".
+    channel: str | None = None,
     claims: dict = Depends(get_current_claims),
     db: Session = Depends(get_db),
 ):
@@ -77,6 +81,8 @@ def list_conversations(
         query = query.filter(Conversation.agent_id == agent_id)
     if status:
         query = query.filter(Conversation.status == status)
+    if channel:
+        query = query.filter(Conversation.channel == channel)
 
     total = query.count()
     calls = (

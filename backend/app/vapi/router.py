@@ -24,7 +24,6 @@ from starlette.concurrency import run_in_threadpool
 from ..agents.models import Agent
 from ..config import settings
 from ..conversations import service as conversations
-from ..conversations.models import ToolExecution
 from ..database import get_db
 from ..deps import get_current_claims
 from ..integrations.service import get_calcom_config
@@ -78,52 +77,14 @@ def _messages_from_openai(raw: list[dict]) -> tuple[list[AnyMessage], str]:
 def _persist_trace(
     db: Session, agent: Agent, call_id: str | None, query: str, result: dict
 ) -> None:
-    """Save what the brain did this turn — the retrieval, plus any scheduling
-    tool calls — so past turns are inspectable (the 'saved' half of
-    console+saved). Shares the call-log upsert so a brain turn and the
-    end-of-call report land on the same Conversation row."""
+    """Save what the brain did this turn so past turns are inspectable (the
+    'saved' half of console+saved). Shares the call-log upsert so a brain turn
+    and the end-of-call report land on the same Conversation row, and shares the
+    trace writer with the chat channel."""
     conv = conversations.get_or_create(db, agent=agent, call_id=call_id)
-
-    chunks = result.get("chunks", [])
-    if chunks or result.get("retrieval_ms"):
-        db.add(
-            ToolExecution(
-                tenant_id=agent.tenant_id,
-                conversation_id=conv.id,
-                tool_name="knowledge_base_search",
-                input={"query": query},
-                output={
-                    "answer": result.get("answer", ""),
-                    "retrieval_ms": result.get("retrieval_ms"),
-                    "chunks": [
-                        {
-                            "filename": c["filename"],
-                            "chunk_index": c["chunk_index"],
-                            "score": c["score"],
-                            "preview": c["content"][:200],
-                        }
-                        for c in chunks
-                    ],
-                },
-                latency_ms=result.get("retrieval_ms"),
-                status="success",
-            )
-        )
-
-    # One row per scheduling tool the model actually chose to call, so a booking
-    # can be traced back to the exact slots offered and the arguments used.
-    for call in result.get("tool_calls", []):
-        db.add(
-            ToolExecution(
-                tenant_id=agent.tenant_id,
-                conversation_id=conv.id,
-                tool_name=call["tool_name"],
-                input=call["input"],
-                output={"result": call["output"]},
-                latency_ms=call.get("latency_ms"),
-                status=call.get("status", "success"),
-            )
-        )
+    conversations.record_brain_turn(
+        db, agent=agent, conversation=conv, query=query, result=result
+    )
     db.commit()
 
 

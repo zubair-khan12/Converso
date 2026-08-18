@@ -36,7 +36,11 @@ def summary(
     since_month = _month_start(now)
     since_week = now - timedelta(days=7)
 
-    calls = db.query(Conversation).filter(Conversation.tenant_id == tenant_id)
+    # Call stats mean *phone* calls. Chat sessions live in the same table, so
+    # every rollup below is explicitly voice-only — otherwise opening the chat
+    # panel would silently inflate "total calls" and "minutes".
+    voice = (Conversation.tenant_id == tenant_id, Conversation.channel == "voice")
+    calls = db.query(Conversation).filter(*voice)
 
     # A single grouped pass for the call rollups — four separate COUNT queries
     # would scan the same rows four times.
@@ -47,7 +51,7 @@ def summary(
             func.count(distinct(Conversation.caller_number)),
             func.coalesce(func.sum(Conversation.cost_usd), 0),
         )
-        .filter(Conversation.tenant_id == tenant_id)
+        .filter(*voice)
         .one()
     )
     total_calls, total_seconds, unique_callers, total_cost = totals
@@ -57,10 +61,7 @@ def summary(
             func.count(Conversation.id),
             func.coalesce(func.sum(Conversation.duration_seconds), 0),
         )
-        .filter(
-            Conversation.tenant_id == tenant_id,
-            Conversation.started_at >= since_month,
-        )
+        .filter(*voice, Conversation.started_at >= since_month)
         .one()
     )
     month_calls, month_seconds = month
@@ -69,9 +70,15 @@ def summary(
     active_calls = calls.filter(Conversation.status == "active").count()
     failed_calls = calls.filter(Conversation.status == "failed").count()
 
+    chats = db.query(Conversation).filter(
+        Conversation.tenant_id == tenant_id, Conversation.channel == "chat"
+    )
+    total_chats = chats.count()
+    month_chats = chats.filter(Conversation.started_at >= since_month).count()
+
     recent = (
         db.query(Conversation)
-        .filter(Conversation.tenant_id == tenant_id)
+        .filter(*voice)
         .order_by(
             # New rows may not have started_at yet (created by a RAG turn before
             # the first status-update), so fall back to insertion order.
@@ -105,6 +112,7 @@ def summary(
             "in_progress": active_calls,
             "failed": failed_calls,
         },
+        "chats": {"total": total_chats, "this_month": month_chats},
         "minutes": {
             # Rounded for display; the raw seconds stay in the DB.
             "total": round(int(total_seconds) / 60, 1),

@@ -254,15 +254,24 @@ export const getDashboardSummary = cache(async (): Promise<DashboardSummary | nu
 
 /** The tenant's call logs, newest first. Empty on any error — the Call Logs
  *  screen distinguishes "no calls" from "couldn't load" via `total`. */
-export const getCallLogs = cache(async (limit = 50): Promise<CallLogPage> => {
+export const getCallLogs = cache(async (
+  channel: "voice" | "chat" = "voice",
+  limit = 50,
+): Promise<CallLogPage> => {
   const token = await getSessionToken();
   const empty: CallLogPage = { calls: [], total: 0, has_more: false };
   if (!token) return empty;
 
-  const res = await fetch(`${backendUrl()}/api/conversations?limit=${limit}`, {
-    headers: { Authorization: `Bearer ${token}` },
-    cache: "no-store",
-  }).catch(() => null);
+  // Always scoped to one channel: voice and chat share the table, and mixing
+  // them in one list would put rows with no recording or caller next to rows
+  // that have both.
+  const res = await fetch(
+    `${backendUrl()}/api/conversations?limit=${limit}&channel=${channel}`,
+    {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    },
+  ).catch(() => null);
 
   if (!res || !res.ok) return empty;
   return res.json();

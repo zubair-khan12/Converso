@@ -5,6 +5,7 @@ import {
   BookOpen,
   Bot,
   Clock,
+  MessagesSquare,
   PhoneCall,
   PhoneIncoming,
   Users,
@@ -177,7 +178,7 @@ export function DashboardContent({
             {greeting()}, {firstName}
           </h1>
           <p className="page-sub">
-            Here&apos;s what&apos;s happening with your voice agents.
+            Here&apos;s what&apos;s happening across your agents.
           </p>
         </div>
         <Button
@@ -192,7 +193,7 @@ export function DashboardContent({
       </div>
 
       {/* Stat cards */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <StatCard
           icon={Bot}
           label="Total agents"
@@ -229,6 +230,18 @@ export function DashboardContent({
               : summary.minutes.total > 0
                 ? `${summary.minutes.this_month} this month`
                 : "No call time logged"
+          }
+        />
+        <StatCard
+          icon={MessagesSquare}
+          label="Chat sessions"
+          value={stat(summary?.chats.total)}
+          note={
+            !summary
+              ? "Couldn't load right now"
+              : summary.chats.total === 0
+                ? "No chats yet"
+                : `${summary.chats.this_month} this month`
           }
         />
         <StatCard

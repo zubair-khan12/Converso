@@ -8,7 +8,7 @@ from sqlalchemy import Column, ForeignKey, Integer, String, Text
 from sqlalchemy.dialects.postgresql import UUID
 
 from ..base_model import TenantScopedMixin, TimestampMixin, _uuid_pk
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import backref, relationship
 
 from ..config import settings
 from ..database import Base
@@ -49,7 +49,13 @@ class Document(TenantScopedMixin, TimestampMixin, Base):
     error = Column(Text, nullable=True)
 
     tenant = relationship("Tenant", backref="documents")
-    agent = relationship("Agent", backref="documents")
+    # passive_deletes: `agent_id` is NOT NULL with ON DELETE CASCADE, so the
+    # database removes these rows itself. Without it SQLAlchemy first tries to
+    # null the column on delete, and deleting an agent that has any knowledge
+    # source fails on the NOT NULL constraint instead.
+    agent = relationship(
+        "Agent", backref=backref("documents", passive_deletes=True)
+    )
     chunks = relationship(
         "DocumentChunk", backref="document", cascade="all, delete-orphan"
     )
